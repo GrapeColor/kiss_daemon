@@ -1,0 +1,22 @@
+{
+  "name": "kiss_you",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "node -r dotenv/config src/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "GrapeColor",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^12.3.1",
+    "dotenv": "^8.2.0",
+    "dropbox": "^5.2.1",
+    "isomorphic-fetch": "^2.2.1",
+    "lodash": "^4.17.20",
+    "twemoji-parser": "^13.0.0"
+  }
+}

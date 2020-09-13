@@ -1,0 +1,22 @@
+{
+  "guildID": "",
+  "adminRoles": [],
+  "liveChannel": {
+    "acceptChannel": "",
+    "allowRoles": [],
+    "restricRoles": [],
+    "liveName": "実況チャンネル",
+    "closeEmoji": "❌",
+    "defaultTopic": "",
+    "minLive": 0,
+    "maxLive": 0,
+    "maxOpenLive": 0,
+    "autoClose": 0,
+    "defaultRateLimit": 0,
+    "onlySelf": false,
+    "liveBadge": true,
+    "pinLink": true,
+    "autoDelete": false,
+    "defaultNSFW": false
+  }
+}
