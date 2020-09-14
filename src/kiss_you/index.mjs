@@ -1,6 +1,6 @@
 import { Client, Intents, Message } from 'discord.js';
 
-import Config from './config.js'
+import Config from './config.js';
 import LiveAccept from './live_accept.js';
 
 export default class KissYou {
@@ -36,9 +36,9 @@ export default class KissYou {
    */
   async login(token) {
     await Config.load();
-    console.info('Loaded config files.')
+    console.info('Loaded config files.');
 
     await this.bot.login(token);
-    console.info('Logged in to Discord.')
+    console.info('Logged in to Discord.');
   }
 }

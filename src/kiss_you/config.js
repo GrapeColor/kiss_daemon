@@ -31,17 +31,17 @@ const emojiRegex
  * @property {string[]} restricRoles
  * @property {string} liveName
  * @property {string} closeEmoji
- * @property {string} defaultTopic
+ * @property {string} topic
  * @property {number} minLive
  * @property {number} maxLive
  * @property {number} maxOpenLive
  * @property {number} autoClose
- * @property {number} defaultRateLimit
+ * @property {number} rateLimit
  * @property {boolean} onlySelf
  * @property {boolean} liveBadge
  * @property {boolean} pinLink
  * @property {boolean} autoDelete
- * @property {boolean} defaultNSFW
+ * @property {boolean} nfsw
  */
 
 export default class Config extends EventEmitter {
@@ -49,7 +49,7 @@ export default class Config extends EventEmitter {
    * Configs for all guilds.
    * @type {Object.<string, Config>}
    */
-  static configs = {}
+  static configs = {};
 
   /**
    * Default config.
@@ -156,6 +156,7 @@ export default class Config extends EventEmitter {
           await this.setAdminRoles(channel, channel.guild, args.slice(2), true);
         if (args[1] === 'remove')
           await this.setAdminRoles(channel, channel.guild, args.slice(2), false);
+        break;
       case 'live':
         this.commandLive(channel, args.slice(1));
         break;
@@ -194,17 +195,17 @@ export default class Config extends EventEmitter {
         inline: true
       },
       {
-        name: 'デフォルトトピック',
-        value: `\`\`\`${this.liveChannel.defaultTopic || '(未設定)'}\`\`\``
+        name: 'トピック',
+        value: `\`\`\`${this.liveChannel.topic || '(未設定)'}\`\`\``
       },
       {
-        name: 'デフォルトレート制限(秒)',
-        value: `\`\`\`${this.liveChannel.defaultRateLimit}\`\`\``,
+        name: 'レート制限(秒)',
+        value: `\`\`\`${this.liveChannel.rateLimit}\`\`\``,
         inline: true
       },
       {
-        name: 'デフォルトNSFW',
-        value: this.liveChannel.defaultNSFW ? '```有効```' : '```無効```',
+        name: 'NSFW',
+        value: this.liveChannel.nfsw ? '```有効```' : '```無効```',
         inline: true
       },
       {
@@ -290,7 +291,7 @@ export default class Config extends EventEmitter {
       roles = roles.filter(roleID => !setRoles.includes(roleID));
     }
 
-    if (await this.updateConfig(channel, 'adminRoles', null, roles)) {
+    if (await this.updateConfig(channel, 'adminRoles', null, roles))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -300,7 +301,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -334,8 +334,8 @@ export default class Config extends EventEmitter {
       case 'close-emoji':
         await this.setCloseEmoji(channel, channel.guild, args.slice(1));
         break;
-      case 'default-topic':
-        await this.setDefaultTopic(channel, args.slice(1));
+      case 'topic':
+        await this.setTopic(channel, args.slice(1));
         break;
       case 'min':
         await this.setMinLive(channel, args.slice(1));
@@ -349,8 +349,8 @@ export default class Config extends EventEmitter {
       case 'auto-close':
         await this.setAutoClose(channel, args.slice(1));
         break;
-      case 'default-ratelimit':
-        await this.setDefaultRateLimit(channel, args.slice(1));
+      case 'ratelimit':
+        await this.setRateLimit(channel, args.slice(1));
         break;
       case 'only-self':
         if (args[1] === 'enable')  await this.setOnlySelf(channel, true);
@@ -368,9 +368,9 @@ export default class Config extends EventEmitter {
         if (args[1] === 'enable')  await this.setAutoDelete(channel, true);
         if (args[1] === 'disable') await this.setAutoDelete(channel, false);
         break;
-      case 'default-NSFW':
-        if (args[1] === 'enable')  await this.setDefaultNSFW(channel, true);
-        if (args[1] === 'disable') await this.setDefaultNSFW(channel, false);
+      case 'nsfw':
+        if (args[1] === 'enable')  await this.setNSFW(channel, true);
+        if (args[1] === 'disable') await this.setNSFW(channel, false);
     }
   }
 
@@ -404,6 +404,8 @@ export default class Config extends EventEmitter {
     }
 
     if (await this.updateConfig(channel, 'liveChannel', 'acceptChannel', acceptID)) {
+      this.emit('liveAcceptUpdate');
+
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -436,7 +438,7 @@ export default class Config extends EventEmitter {
       roles = roles.filter(roleID => !setRoles.includes(roleID));
     }
 
-    if (await this.updateConfig(channel, 'liveChannel', 'allowRoles', roles)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'allowRoles', roles))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -446,7 +448,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -470,7 +471,7 @@ export default class Config extends EventEmitter {
       roles = roles.filter(roleID => !setRoles.includes(roleID));
     }
 
-    if (await this.updateConfig(channel, 'liveChannel', 'restricRoles', roles)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'restricRoles', roles))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -480,7 +481,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -563,7 +563,7 @@ export default class Config extends EventEmitter {
       return;
     }
 
-    if (await this.updateConfig(channel, 'liveChannel', 'closeEmoji', emoji)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'closeEmoji', emoji))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -572,7 +572,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -580,7 +579,7 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel|null} channel - Guils's text channel.
    * @param {string[]} args - Parsed command arguments.
    */
-  async setDefaultTopic(channel, args) {
+  async setTopic(channel, args) {
     const topic = args.join(' ');
 
     if (topic.length > 900) {
@@ -595,7 +594,7 @@ export default class Config extends EventEmitter {
       return;
     }
 
-    if (await this.updateConfig(channel, 'liveChannel', 'defaultTopic', topic)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'topic', topic))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -603,7 +602,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -627,6 +625,8 @@ export default class Config extends EventEmitter {
     const min = Number(args[0]);
 
     if (await this.updateConfig(channel, 'liveChannel', 'minLive', min)) {
+      this.emit('liveMinUpdate');
+
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -657,7 +657,7 @@ export default class Config extends EventEmitter {
 
     const max = Number(args[0]);
 
-    if (await this.updateConfig(channel, 'liveChannel', 'maxLive', max)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'maxLive', max))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -665,7 +665,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -688,9 +687,9 @@ export default class Config extends EventEmitter {
       return;
     }
 
-    const max = Number(args[0]);;
+    const max = Number(args[0]);
 
-    if (await this.updateConfig(channel, 'liveChannel', 'maxOpenLive', max)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'maxOpenLive', max))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -698,7 +697,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -722,7 +720,7 @@ export default class Config extends EventEmitter {
 
     const limit = Number(args[0]);
 
-    if (await this.updateConfig(channel, 'liveChannel', 'autoClose', limit)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'autoClose', limit))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -730,7 +728,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -738,7 +735,7 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel|null} channel - Guils's text channel.
    * @param {string[]} args - Parsed command arguments.
    */
-  async setDefaultRateLimit(channel, args) {
+  async setRateLimit(channel, args) {
     if (!/^\d+$/.test(args[0])) {
       channel?.send('', {
         embed: {
@@ -753,7 +750,7 @@ export default class Config extends EventEmitter {
 
     const limit = Number(args[0]);
 
-    if (await this.updateConfig(channel, 'liveChannel', 'defaultRateLimit', limit)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'rateLimit', limit))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -761,7 +758,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -770,7 +766,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} enable - enable or disable.
    */
   async setOnlySelf(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'onlySelf', enable)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'onlySelf', enable))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -778,7 +774,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -787,7 +782,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} enable - enable or disable.
    */
   async setBadge(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'liveBadge', enable)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'liveBadge', enable))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -795,7 +790,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -804,7 +798,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} enable - enable or disable.
    */
   async setPinLink(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'pinLink', enable)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'pinLink', enable))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -812,7 +806,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -821,7 +814,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} enable - enable or disable.
    */
   async setAutoDelete(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'autoDelete', enable)) {
+    if (await this.updateConfig(channel, 'liveChannel', 'autoDelete', enable))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -829,7 +822,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**
@@ -837,8 +829,8 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel|null} channel - Guils's text channel.
    * @param {boolean} enable - enable or disable.
    */
-  async setDefaultNSFW(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'defaultNSFW', enable)) {
+  async setNSFW(channel, enable) {
+    if (await this.updateConfig(channel, 'liveChannel', 'nfsw', enable))
       channel?.send('', {
         embed: {
           color: 0x67b160,
@@ -846,7 +838,6 @@ export default class Config extends EventEmitter {
         }
       })
         .catch(console.error);
-    }
   }
 
   /**

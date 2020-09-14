@@ -7,16 +7,16 @@
     "restricRoles": [],
     "liveName": "実況チャンネル",
     "closeEmoji": "❌",
-    "defaultTopic": "",
+    "topic": "",
     "minLive": 0,
     "maxLive": 0,
     "maxOpenLive": 0,
     "autoClose": 0,
-    "defaultRateLimit": 0,
+    "rateLimit": 0,
     "onlySelf": false,
     "liveBadge": true,
     "pinLink": true,
     "autoDelete": false,
-    "defaultNSFW": false
+    "nfsw": false
   }
 }
