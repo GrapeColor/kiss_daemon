@@ -3,17 +3,7 @@ import Discord from 'discord.js';
 import LiveAccept from './live_accept.js';
 
 export default class LiveChannel {
-  /**
-   * Events to enter the client.
-   * @param {Discord.Client} bot Discord.js Client.
-   */
-  static events(bot) {
-    bot.on('messageReactionAdd', (reaction, user) => {
-
-    });
-  }
-
-  static LIVE_REGEX = /^<LIVE_(CLOSED|OPENED:(\d+):(\d+))>$/;
+  static LIVE_REGEX = /^<LIVE_(CLOSED|OPENED:(\d+):(\d+):(\d+))>$/;
 
   /**
    * Entried live channels.
@@ -36,6 +26,7 @@ export default class LiveChannel {
 
     this.living = false;
     this.webhook = undefined;
+
     this.trigger = undefined;
     this.response = undefined;
     this.replica = undefined;
@@ -68,6 +59,7 @@ export default class LiveChannel {
 
     this.trigger = await this.accept.channel.messages.fetch(match[2]);
     this.replica = await this.channel.messages.fetch(match[3]);
+    this.response = await this.accept.channel.messages.fetch(match[4]);
   }
 
   /**
@@ -82,68 +74,128 @@ export default class LiveChannel {
     this.trigger = message;
 
     try {
-      this.replica = await this.channel.send(message);
-
-      await this.webhook.edit({
-        name: `<LIVE_OPENED:${this.trigger.id}:${this.replica.id}>`
-      });
-
-      if (liveConfig.pinLink) await this.replica.pin();
-
       for (const roleID of liveConfig.restricRoles)
         await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': true });
+
+      await this.channel.send('', {
+        embed: {
+          color: LiveAccept.COLOR_LIVE_OPENED,
+          title: '🔴 実況を開始しました'
+        }
+      });
+
+      this.replica = await this.channel.send(message);
+      if (liveConfig.pinLink) await this.replica.pin();
+
+      this.response = await message.channel.send('', {
+        embed: {
+          color: LiveAccept.COLOR_LIVE_OPENED,
+          title: '🔴 実況を開始しました',
+          description: `実況はこちら ➡️ ${this.channel}`,
+          footer: {
+            text: `実況が終わったら${liveConfig.onlySelf ? ` ${member.displayName} さんが` : ''}`
+              + '下のリアクションをクリック'
+          }
+        }
+      });
+
+      await this.webhook.edit({
+        name: `<LIVE_OPENED:${this.trigger.id}:${this.replica.id}:${this.response.id}>`
+      });
+  
+      await this.response.react(liveConfig.closeEmoji);
     } catch (error) {
       this.close()
         .catch(console.error);
 
       throw error;
     }
-
-    this.response = await message.channel.send('', {
-      embed: {
-        color: 0xed3544,
-        title: '🔴 実況を開始しました',
-        description: `実況はこちら➡️ ${stillChannel}`,
-        footer: {
-          text: `実況が終わったら${liveConfig.onlySelf ? ` ${member.displayName} さんが` : ''}`
-            + '下のリアクションをクリック'
-        }
-      }
-    });
-
-    await this.response.react(liveConfig.closeEmoji);
   }
 
+  /**
+   * Close the live channel.
+   */
   async close() {
     const liveConfig = this.config.liveChannel;
 
+    await this.response.reactions.removeAll();
+
+    for (const roleID of liveConfig.restricRoles)
+      await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
+
+    if (liveConfig.autoDelete) await this.trigger.delete();
+
+    await this.replica.unpin();
+
+    const liveTerm = this.calcLiveTerm();
+
+    await this.channel.send('', {
+      embed: {
+        color: LiveAccept.COLOR_LIVE_CLOSED,
+        title: '⚪ 実況が終了しました',
+        description: `実況時間: ${liveTerm}`
+      }
+    });
+
     await this.response.edit('', {
       embed: {
-        color: 0x30373d,
-        title: '⚫実況が終了しました',
-        description: `実況時間: ${this.calcLiveTime()}`
+        color: LiveAccept.COLOR_LIVE_CLOSED,
+        title: '⚪ 実況が終了しました',
+        description: `実況時間: ${liveTerm}`
       }
     })
 
-    await this.response.reactions.removeAll();
-    this.response = undefined;
-
-    if (liveConfig.autoDelete) await this.trigger.delete();
     this.trigger = undefined;
-
-    await this.replica.unpin();
     this.replica = undefined;
+    this.response = undefined;
 
     await this.webhook.edit({ name: '<LIVE_CLOSED>' });
 
     this.living = false;
   }
 
-  calcLiveTime() {
+  /**
+   * Cancel the live channel.
+   */
+  async cancel() {
+    await this.response.reactions.removeAll();
+
+    for (const roleID of liveConfig.restricRoles)
+      await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
+
+    await this.replica.unpin();
+
+    await this.channel.send('', {
+      embed: {
+        color: LiveAccept.COLOR_LIVE_CANCEL,
+        title: '🗑️ 実況がキャンセルされました'
+      }
+    });
+
+    await this.response.edit('', {
+      embed: {
+        color: LiveAccept.COLOR_LIVE_CANCEL,
+        title: '🗑️ 実況がキャンセルされました'
+      }
+    })
+
+    this.trigger = undefined;
+    this.replica = undefined;
+    this.response = undefined;
+
+    await this.webhook.edit({ name: '<LIVE_CLOSED>' });
+
+    this.living = false;
+  }
+
+  calcLiveTerm() {
     const time = Date.now() - this.response.createdTimestamp;
-    const day  = Math.floor(time / 1000 / 60 / 60 / 24 + 1);
+    const day  = Math.floor(time / 1000 / 60 / 60 / 24);
     const hour = Math.floor(time / 1000 / 60 / 60 % 24);
     const min  = Math.floor(time / 1000 / 60 % 60);
+    const sec  = Math.floor(time / 1000);
+
+    if (!(day + hour + min)) return `${sec}秒`;
 
     return `${day ? `${day}日` : ''}${hour ? `${hour}時間` : ''}${min ? `${min}分`: ''}`;
   }

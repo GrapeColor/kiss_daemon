@@ -6,6 +6,10 @@ import LiveChannel from './live_channel.js';
 import _ from 'lodash';
 
 export default class LiveAccept {
+  static COLOR_LIVE_OPENED = 0xed3544;
+  static COLOR_LIVE_CLOSED = 0xe6e7e8;
+  static COLOR_LIVE_CANCEL = 0x64757e;
+
   /**
    * Events to enter the client.
    * @param {Discord.Client} bot Discord.js Client.
@@ -24,6 +28,14 @@ export default class LiveAccept {
 
       if (/https?:\/\/[\w!?/+\-_~;.,*&@#$%()'[\]]+/.test(message.content))
         this.acceptLive(channel, message);
+    });
+
+    bot.on('messageReactionAdd', (reaction, user) => {
+      if (user.bot) return;
+
+      if (reaction.message.author.id === bot.user.id && reaction.me)
+        this.liveAccepts[reaction.message.channel.id].reactionAdd(reaction, user)
+          .catch(console.error);
     });
   }
 
@@ -143,6 +155,19 @@ export default class LiveAccept {
   }
 
   /**
+   * Handle additional reaction event.
+   * @param {Discord.MessageReaction} reaction 
+   * @param {Discord.User} user 
+   */
+  async reactionAdd(reaction, user) {
+    const emoji = reaction.emoji;
+    const closeEmoji = this.config.liveChannel.closeEmoji;
+
+    if (emoji.name === closeEmoji || emoji.id === closeEmoji)
+      await this.endLive(reaction, user);
+  }
+
+  /**
    * Strat live.
    * @param {Discord.Message} message - Trigger message.
    */
@@ -172,6 +197,47 @@ export default class LiveAccept {
     }
 
     await stillChannel.open(message);
+  }
+
+  /**
+   * End live.
+   * @param {Discord.MessageReaction} reaction - Event trigger reaction. 
+   * @param {Discord.User} user Event trigger user.
+   */
+  async endLive(reaction, user) {
+    const liveChannel = this.liveChannels
+      .find(live => live.response.id === reaction.message.id);
+
+    if (!liveChannel) return;
+
+    const onlySelf = this.config.liveChannel.onlySelf;
+
+    if ((onlySelf && user.id !== liveChannel.trigger?.author.id)
+      && !this.isAllowUser(user)) return;
+
+    await liveChannel.close();
+  }
+
+  /**
+   * Is the user allowed to operate?
+   * @param {Discord.User} user 
+   */
+  isAllowUser(user) {
+    const member = this.guild.member(user);
+    const permissions = this.channel.permissionsFor(member);
+
+    if (permissions.has('MANAGE_CHANNELS')) return true;
+
+    const roles = member.roles.cache;
+    let hasAdminRole = false;
+
+    for (const roleID of this.config.adminRoles) {
+      hasAdminRole =  roles.has(roleID) ? true : false;
+
+      if (hasAdminRole) break;
+    }
+
+    return hasAdminRole;
   }
 
   async fillChannels() {
