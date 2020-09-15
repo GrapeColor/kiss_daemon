@@ -1,4 +1,4 @@
-import Discord from 'discord.js';
+import Discord, { ReactionEmoji } from 'discord.js';
 
 import Config from './config.js';
 import LiveChannel from './live_channel.js';
@@ -56,7 +56,7 @@ export default class LiveAccept {
 
     if (this.liveConfig.allowRoles.length && !allowRoles.size) return;
 
-    this.liveAccepts[guild.id].startLive(message)
+    this.liveAccepts[channel.id].startLive(message)
       .catch(console.error);
   }
 
@@ -99,7 +99,7 @@ export default class LiveAccept {
 
     if (!channel) return undefined;
 
-    LiveAccept.liveAccepts[channel.id] = this;
+    LiveAccept.liveAccepts[channelID] = this;
 
     return channel;
   }
@@ -122,8 +122,8 @@ export default class LiveAccept {
   initChannels() {
     if (!this.channel) return [];
 
-    const liveRegex = new RegExp(`(🔴)?${this.config.liveChannel.liveName}\d{1,3}`);
-    const channels = this.parent?.children || this.guild.channels.cache
+    const liveRegex = new RegExp(`^${this.config.liveChannel.liveName}\\d{1,3}`);
+    const channels = this.parent?.children || this.guild.channels.cache;
 
     return channels
       .filter(channel => channel.type === 'text' && liveRegex.test(channel.name))
@@ -158,27 +158,20 @@ export default class LiveAccept {
         const response = await this.channel.send('', {
           embed: {
             color: 0xffcd61,
-            title: '⚠️ 実況チャンネルに空きがありません'
+            title: '⚠️ 実況チャンネルに空きがありません',
+            footer: {
+              text: '管理者は下のリアクションで一時的にチャンネルを追加できます'
+            }
           }
         });
 
-        await response.react('🆕');
+        await response.react('☑️');
 
         return;
       }
     }
 
     await stillChannel.open(message);
-
-    const response = await this.channel.send('', {
-      embed: {
-        color: 0xed3544,
-        title: '🔴 実況を開始しました',
-        description: `${stillChannel}`
-      }
-    });
-
-    await response.react(this.config.liveChannel.closeEmoji);
   }
 
   async fillChannels() {
@@ -186,11 +179,12 @@ export default class LiveAccept {
 
     const minLive = this.config.liveChannel.minLive;
 
-    if (minLive <= this.channels.length) return;
-
-    for (const _ of [...Array(minLive - this.channels.length)]) {
-      await this.addChannel();
-    }
+    if (minLive > this.channels.length)
+      for (const _ of [...Array(minLive - this.channels.length)])
+        await this.addChannel();
+    else
+      for (const _ of [...Array(this.channels.length - minLive)])
+        await this.removeChannel();
   }
 
   /**
@@ -211,9 +205,8 @@ export default class LiveAccept {
       reason: 'To increase the number of live channels.'
     });
 
-    for (const roleID of liveConfig.restricRoles) {
+    for (const roleID of liveConfig.restricRoles)
       await newChannel.updateOverwrite(roleID, { 'SEND_MESSAGES': false }, 'Create live');
-    }
 
     const liveChannel = new LiveChannel(this, newChannel);
 
@@ -228,8 +221,19 @@ export default class LiveAccept {
    */
   nextPosition() {
     const size = (this.parent ? this.parent.children.size : this.guild.channels.cache.size);
-    const position = (this.channels.slice(-1)[0]?.position || this.channel.position) + 2;
+    const nextPosition = (this.channels.slice(-1)[0]?.position || this.channel.position) + 2;
 
-    return size < position ? 0 : position;
+    return size < nextPosition ? 0 : nextPosition;
+  }
+
+  async removeChannel(number = this.channels.length - 1) {
+    const liveChannel = this.liveChannels[number];
+
+    if (liveChannel.living) return;
+
+    this.channels = this.channels.filter((_, n) => n !== number);
+    this.liveChannels = this.liveChannels.filter((_, n) => n !== number);
+
+    await liveChannel.channel.delete('Delete unnecessary the live channel');
   }
 }

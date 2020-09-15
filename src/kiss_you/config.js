@@ -38,7 +38,6 @@ const emojiRegex
  * @property {number} autoClose
  * @property {number} rateLimit
  * @property {boolean} onlySelf
- * @property {boolean} liveBadge
  * @property {boolean} pinLink
  * @property {boolean} autoDelete
  * @property {boolean} nfsw
@@ -123,8 +122,7 @@ export default class Config extends EventEmitter {
 
     if (!member.hasPermission('ADMINISTRATOR') && !roles.size) return;
 
-    this.configs[guild.id].command(channel, message)
-      .catch(console.error);
+    await this.configs[guild.id].command(channel, message);
   }
 
   /**
@@ -158,7 +156,7 @@ export default class Config extends EventEmitter {
           await this.setAdminRoles(channel, channel.guild, args.slice(2), false);
         break;
       case 'live':
-        this.commandLive(channel, args.slice(1));
+        await this.commandLive(channel, args.slice(1));
         break;
     }
   }
@@ -247,11 +245,6 @@ export default class Config extends EventEmitter {
       {
         name: '実況自動終了時間(分)',
         value: `\`\`\`${this.liveChannel.autoClose || 'なし(機能無効)'}\`\`\``,
-        inline: true
-      },
-      {
-        name: '実況中バッジ表示',
-        value: this.liveChannel.liveBadge ? '```する```' : '```しない```',
         inline: true
       },
       {
@@ -355,10 +348,6 @@ export default class Config extends EventEmitter {
       case 'only-self':
         if (args[1] === 'enable')  await this.setOnlySelf(channel, true);
         if (args[1] === 'disable') await this.setOnlySelf(channel, false);
-        break;
-      case 'badge':
-        if (args[1] === 'enable')  await this.setBadge(channel, true);
-        if (args[1] === 'disable') await this.setBadge(channel, false);
         break;
       case 'pin-massage':
         if (args[1] === 'enable')  await this.setPinLink(channel, true);
@@ -771,22 +760,6 @@ export default class Config extends EventEmitter {
         embed: {
           color: 0x67b160,
           title: `✅ 実況チャンネルの終了を本人に限定を${enable ? '有効' : '無効'}にしました`
-        }
-      })
-        .catch(console.error);
-  }
-
-  /**
-   * Set enable live badge on live channel.
-   * @param {Discord.TextChannel|null} channel - Guils's text channel.
-   * @param {boolean} enable - enable or disable.
-   */
-  async setBadge(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'liveBadge', enable))
-      channel?.send('', {
-        embed: {
-          color: 0x67b160,
-          title: `✅ 実況中チャンネルへのバッチ表示を${enable ? '有効' : '無効'}にしました`
         }
       })
         .catch(console.error);

@@ -2,6 +2,7 @@ import { Client, Intents, Message } from 'discord.js';
 
 import Config from './config.js';
 import LiveAccept from './live_accept.js';
+import LiveChannel from './live_channel.js';
 
 export default class KissYou {
   constructor() {
@@ -28,6 +29,7 @@ export default class KissYou {
 
     Config.events(this.bot);
     LiveAccept.events(this.bot);
+    LiveChannel.events(this.bot);
   }
 
   /**
