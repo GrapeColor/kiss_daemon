@@ -80,9 +80,6 @@ export default class LiveChannel {
     this.trigger  = undefined;
     this.replica  = undefined;
     this.response = undefined;
-
-    this.checkLiving()
-      .catch(console.error);
   }
 
   /**
@@ -155,10 +152,11 @@ export default class LiveChannel {
 
     const liveConfig = this.config.liveChannel;
     const closeEmoji = liveConfig.closeEmoji;
+    const member = await this.guild.members.fetch(user);
 
     if ((emoji.id ?? emoji.name) === closeEmoji) {
       if ((liveConfig.onlySelf && user.id !== this.trigger.author.id)
-        && !this.isAllowUser(user)) return;
+        && !this.isAllowUser(member)) return;
 
       await this.close();
     }
@@ -166,10 +164,9 @@ export default class LiveChannel {
 
   /**
    * Is the user allowed to operate?
-   * @param {Discord.User} user 
+   * @param {Discord.GuildMember} member 
    */
-  isAllowUser(user) {
-    const member = this.guild.member(user);
+  async isAllowUser(member) {
     const permissions = this.accept.channel.permissionsFor(member);
 
     if (permissions.has('MANAGE_CHANNELS')) return true;
@@ -192,7 +189,7 @@ export default class LiveChannel {
    */
   async open(trigger) {
     const liveConfig = this.config.liveChannel;
-    const member = this.guild.member(trigger.author);
+    const member = await this.guild.members.fetch(trigger.author);
 
     let replica, response;
 
@@ -208,7 +205,7 @@ export default class LiveChannel {
 
       await this.channel.send(embed);
 
-      replica = await this.channel.send(trigger);
+      replica = await this.channel.send(trigger.content);
 
       if (liveConfig.pinLink) await replica.pin();
 
@@ -261,8 +258,9 @@ export default class LiveChannel {
 
   /**
    * When the trigger is edited.
+   * @param {Discord.Message} message - Edited message.
    */
-  async edit(message) { await this.replica.edit(message); }
+  async edit(message) { await this.replica.edit(message.content); }
 
   /**
    * Cancel the live channel.

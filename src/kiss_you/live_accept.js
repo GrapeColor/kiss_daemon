@@ -55,6 +55,7 @@ export default class LiveAccept {
    */
   constructor(guild) {
     this.guild = guild;
+    this.configTaken = Config.take(guild.id);
     this.config = Config.read(guild.id);
 
     this.channel = this.initAccept();
@@ -64,13 +65,16 @@ export default class LiveAccept {
     this.liveChannels
       = this.channels.map((channel, n) => new LiveChannel(this, channel, n));
 
-    this.config.on('liveAcceptUpdate', () => this.updateAccept()
+    for (const live of this.liveChannels) live.checkLiving()
+      .catch(console.error);
+
+    this.configTaken.on('liveAcceptUpdate', () => this.updateAccept()
       .catch(console.error));
 
-    this.config.on('liveNameUpdate', () => this.updateChannels()
+    this.configTaken.on('liveNameUpdate', () => this.updateChannels()
       .catch(console.error));
 
-    this.config.on('liveMinUpdate', () => this.fillChannels()
+    this.configTaken.on('liveMinUpdate', () => this.fillChannels()
       .catch(console.error));
   }
 
@@ -128,8 +132,8 @@ export default class LiveAccept {
     this.channels = this.initChannels();
     this.liveChannels = this.channels.map(channel => new LiveChannel(this, channel));
 
-    await this.config.setMinLive(null, [`${this.channels.length}`]);
-    await this.config.setMaxLive(null, [`${this.channels.length}`]);
+    await this.configTaken.setMinLive(null, [`${this.channels.length}`]);
+    await this.configTaken.setMaxLive(null, [`${this.channels.length}`]);
   }
 
   /**
@@ -138,13 +142,15 @@ export default class LiveAccept {
    */
   async startLive(message) {
     const liveConfig = this.config.liveChannel;
-    const member = this.guild.member(member.author);
+    const allowRoles = liveConfig.allowRoles;
+    const member = await this.guild.members.fetch(message.author);
+    const roleIDs = member?.roles.cache.keyArray();
 
-    const roleIDs = member.roles.cache.keyArray();
-    const allowRole
-      = roleIDs.find(roleID => liveConfig.allowRoles.includes(roleID));
+    if (!roleIDs?.length) return;
 
-    if (liveConfig.allowRoles.length && !allowRole) return;
+    const allowRole = roleIDs.find(roleID => allowRoles.includes(roleID));
+
+    if (allowRoles.length && !allowRole && !this.isAllowUser(member)) return;
 
     const maxLive = this.config.liveChannel.maxLive;
     let stillChannel = this.liveChannels.find(live => !live.living);
@@ -155,6 +161,7 @@ export default class LiveAccept {
         const embed = new Discord.MessageEmbed({ color: LiveAccept.COLOR_LIVE_FULL });
 
         embed.title = '⚠️ 実況チャンネルに空きがありません';
+        embed.url = message.url;
         embed.footer = { text: '管理者は下のリアクションで一時的にチャンネルを追加できます' };
 
         const response = await this.channel.send(embed);
@@ -186,17 +193,49 @@ export default class LiveAccept {
   async extensionLive(reaction, user) {
     if (reaction.emoji.name !== LiveAccept.EMOJI_EXTENSION) return;
 
-    const member = this.guild.member(user);
+    const member = await this.guild.members.fetch(user);
     const roleIDs = member?.roles.cache.keyArray();
 
-    if (!roleIDs) return;
+    if (!roleIDs?.length) return;
 
     const adminRoles = this.config.adminRoles;
     const allowRole = roleIDs.find(roleID => adminRoles.includes(roleID));
 
-    if (!allowRole) return;
+    if (!allowRole && !this.isAllowUser(member)) return;
 
+    const response = await reaction.message.fetch();
+    const matchID = response.embeds[0]?.url?.match(/\/(\d+)$/)?.[1];
+
+    if (!matchID) return;
+
+    const trigger = await this.channel.messages.fetch(matchID);
+
+    if (!trigger) return;
+
+    await response.delete();
     await this.addChannel();
+    await this.startLive(trigger);
+  }
+
+  /**
+   * Is the user allowed to operate?
+   * @param {Discord.GuildMember} member 
+   */
+  isAllowUser(member) {
+    const permissions = this.channel.permissionsFor(member);
+
+    if (permissions.has('MANAGE_CHANNELS')) return true;
+
+    const roles = member.roles.cache;
+    let hasAdminRole = false;
+
+    for (const roleID of this.config.adminRoles) {
+      hasAdminRole =  roles.has(roleID) ? true : false;
+
+      if (hasAdminRole) break;
+    }
+
+    return hasAdminRole;
   }
 
   async fillChannels() {
@@ -245,6 +284,8 @@ export default class LiveAccept {
       await newChannel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
 
     const liveChannel = new LiveChannel(this, newChannel);
+
+    await liveChannel.checkLiving();
 
     this.channels.push(newChannel);
     this.liveChannels.push(liveChannel);

@@ -38,7 +38,6 @@ const emojiRegex
  * @property {string} topic
  * @property {number} minLive
  * @property {number} maxLive
- * @property {number} maxOpenLive
  * @property {number} autoClose
  * @property {number} rateLimit
  * @property {boolean} onlySelf
@@ -95,6 +94,17 @@ export default class Config extends EventEmitter {
   }
 
   /**
+   * Take guild config.
+   * @param {string} guildID - Guild ID.
+   */
+  static take(guildID) {
+    if (!this.configs[guildID])
+      this.configs[guildID] = new Config(guildID, this.defaultConfigJSON);
+
+    return this.configs[guildID];
+  }
+
+  /**
    * Events to enter the client.
    * @param {Discord.Client} bot Discord.js Client.
    */
@@ -124,7 +134,7 @@ export default class Config extends EventEmitter {
     const guild = channel.guild;
     const adminRoles = Config.read(guild.id).adminRoles;
 
-    const member = channel.guild.members.resolve(message.author);
+    const member = await channel.guild.members.fetch(message.author);
     const roles = member.roles.cache.filter(role => adminRoles.includes(role.id));
 
     if (!member.hasPermission('ADMINISTRATOR') && !roles.size) return;
@@ -224,11 +234,6 @@ export default class Config extends EventEmitter {
       {
         name: '実況チャンネル上限',
         value: `\`\`\`${this.config.liveChannel.maxLive}\`\`\``,
-        inline: true
-      },
-      {
-        name: '1人あたりの実況上限',
-        value: `\`\`\`${this.config.liveChannel.maxOpenLive || '制限なし'}\`\`\``,
         inline: true
       },
       {
@@ -333,9 +338,6 @@ export default class Config extends EventEmitter {
         break;
       case 'max':
         await this.setMaxLive(channel, args.slice(1));
-        break;
-      case 'max-open':
-        await this.setMaxOpenLive(channel, args.slice(1));
         break;
       case 'auto-close':
         await this.setAutoClose(channel, args.slice(1));
@@ -642,36 +644,6 @@ export default class Config extends EventEmitter {
         embed: {
           color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネル数の上限値を ${max} に設定しました`
-        }
-      });
-  }
-
-  /**
-   * Set maximum number of user open channel.
-   * @param {Discord.TextChannel|null} channel - Guils's text channel.
-   * @param {string[]} args - Parsed command arguments.
-   */
-  async setMaxOpenLive(channel, args) {
-    if (!/^\d+$/.test(args[0])) {
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_FAILD,
-          title: '⚠️ 上限数を半角数字の正数で入力してください',
-          description: '1人のユーザーが使用できる実況チャンネルの上限数を入力してください。\n'
-            + '`0` 以下の数を入力すると、機能が無効になります。'
-        }
-      });
-
-      return;
-    }
-
-    const max = Number(args[0]);
-
-    if (await this.updateConfig(channel, 'liveChannel', 'maxOpenLive', max))
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_SUCCESS,
-          title: `✅ 1人あたりの実況チャンネルの上限値を${max ? ` ${max} に設定` : '無効に'}しました`
         }
       });
   }

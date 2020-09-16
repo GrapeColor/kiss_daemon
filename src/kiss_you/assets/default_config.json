@@ -9,7 +9,6 @@
     "topic": "",
     "minLive": 0,
     "maxLive": 0,
-    "maxOpenLive": 0,
     "autoClose": 0,
     "rateLimit": 0,
     "onlySelf": false,
