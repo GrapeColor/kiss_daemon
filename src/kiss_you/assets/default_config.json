@@ -15,7 +15,6 @@
     "rateLimit": 0,
     "onlySelf": false,
     "pinLink": true,
-    "autoDelete": false,
     "nfsw": false
   }
 }

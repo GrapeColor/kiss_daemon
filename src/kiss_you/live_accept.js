@@ -3,41 +3,37 @@ import Discord, { ReactionEmoji } from 'discord.js';
 import Config from './config.js';
 import LiveChannel from './live_channel.js';
 
-import _ from 'lodash';
-
 export default class LiveAccept {
-  static COLOR_LIVE_OPENED = 0xed3544;
-  static COLOR_LIVE_CLOSED = 0xe6e7e8;
-  static COLOR_LIVE_CANCEL = 0x64757e;
-
   /**
    * Events to enter the client.
    * @param {Discord.Client} bot Discord.js Client.
    */
   static events(bot) {
-    bot.on('ready', () => {
-      this.loadLiveChannels(bot);
-    });
+    bot.on('ready', () => this.loadLiveChannels(bot) );
 
     bot.on('message', message => {
       const channel = message.channel;
 
       if (channel.type !== 'text' || message.author.bot) return;
 
-      if (!this.liveAccepts[channel.id]) return;
-
       if (/https?:\/\/[\w!?/+\-_~;.,*&@#$%()'[\]]+/.test(message.content))
-        this.acceptLive(channel, message);
+        this.liveAccepts[channel.id]?.startLive(message)
+          .catch(console.error);
     });
 
     bot.on('messageReactionAdd', (reaction, user) => {
       if (user.bot) return;
 
-      if (reaction.message.author.id === bot.user.id && reaction.me)
-        this.liveAccepts[reaction.message.channel.id].reactionAdd(reaction, user)
+      this.liveAccepts[reaction.message.channel.id]
+        ?.extensionLive(reaction, user)
           .catch(console.error);
     });
   }
+
+  static COLOR_LIVE_FAILD = 0xffcd60;
+  static COLOR_LIVE_FULL  = 0xffcd61;
+
+  static EMOJI_EXTENSION = '🆕';
 
   /**
    * Entried live accepts.
@@ -54,25 +50,6 @@ export default class LiveAccept {
   }
 
   /**
-   * Generate live channel.
-   * @param {Discord.TextChannel} channel - Guils's text channel.
-   * @param {Discord.Message} message - Event trigger message.
-   */
-  static acceptLive(channel, message) {
-    const guild = channel.guild;
-    this.liveConfig = Config.read(guild.id).liveChannel;
-
-    const member = channel.guild.members.resolve(message.author);
-    const allowRoles = member.roles.cache
-      .filter(role => this.liveConfig.allowRoles.includes(role.id));
-
-    if (this.liveConfig.allowRoles.length && !allowRoles.size) return;
-
-    this.liveAccepts[channel.id].startLive(message)
-      .catch(console.error);
-  }
-
-  /**
    * Initialize live channels.
    * @param {Discord.Guild} guild Start live channel.
    */
@@ -84,7 +61,8 @@ export default class LiveAccept {
     this.parent = this.channel?.parent;
 
     this.channels = this.initChannels();
-    this.liveChannels = this.channels.map(channel => new LiveChannel(this, channel));
+    this.liveChannels
+      = this.channels.map((channel, n) => new LiveChannel(this, channel, n));
 
     this.config.on('liveAcceptUpdate', () => this.updateAccept()
       .catch(console.error));
@@ -155,24 +133,18 @@ export default class LiveAccept {
   }
 
   /**
-   * Handle additional reaction event.
-   * @param {Discord.MessageReaction} reaction 
-   * @param {Discord.User} user 
-   */
-  async reactionAdd(reaction, user) {
-    const emoji = reaction.emoji;
-    const closeEmoji = this.config.liveChannel.closeEmoji;
-
-    if (emoji.name === closeEmoji || emoji.id === closeEmoji)
-      await this.endLive(reaction, user);
-  }
-
-  /**
    * Strat live.
    * @param {Discord.Message} message - Trigger message.
    */
   async startLive(message) {
-    if (!this.channel) return;
+    const liveConfig = this.config.liveChannel;
+    const member = this.guild.member(member.author);
+
+    const roleIDs = member.roles.cache.keyArray();
+    const allowRole
+      = roleIDs.find(roleID => liveConfig.allowRoles.includes(roleID));
+
+    if (liveConfig.allowRoles.length && !allowRole) return;
 
     const maxLive = this.config.liveChannel.maxLive;
     let stillChannel = this.liveChannels.find(live => !live.living);
@@ -180,17 +152,14 @@ export default class LiveAccept {
     if (!stillChannel) {
       if (this.liveChannels.length < maxLive) stillChannel = await this.addChannel();
       else {
-        const response = await this.channel.send('', {
-          embed: {
-            color: 0xffcd61,
-            title: '⚠️ 実況チャンネルに空きがありません',
-            footer: {
-              text: '管理者は下のリアクションで一時的にチャンネルを追加できます'
-            }
-          }
-        });
+        const embed = new Discord.MessageEmbed({ color: LiveAccept.COLOR_LIVE_FULL });
 
-        await response.react('☑️');
+        embed.title = '⚠️ 実況チャンネルに空きがありません';
+        embed.footer = { text: '管理者は下のリアクションで一時的にチャンネルを追加できます' };
+
+        const response = await this.channel.send(embed);
+
+        await response.react(LiveAccept.EMOJI_EXTENSION);
 
         return;
       }
@@ -201,43 +170,33 @@ export default class LiveAccept {
 
   /**
    * End live.
-   * @param {Discord.MessageReaction} reaction - Event trigger reaction. 
-   * @param {Discord.User} user Event trigger user.
+   * @param {number} number 
    */
-  async endLive(reaction, user) {
-    const liveChannel = this.liveChannels
-      .find(live => live.response.id === reaction.message.id);
+  async endLive(number) {
+    if (number <= this.config.liveChannel.minLive) return;
 
-    if (!liveChannel) return;
-
-    const onlySelf = this.config.liveChannel.onlySelf;
-
-    if ((onlySelf && user.id !== liveChannel.trigger?.author.id)
-      && !this.isAllowUser(user)) return;
-
-    await liveChannel.close();
+    await this.removeChannel(number);
   }
 
   /**
-   * Is the user allowed to operate?
+   * 
+   * @param {Discord.MessageReaction} reaction 
    * @param {Discord.User} user 
    */
-  isAllowUser(user) {
+  async extensionLive(reaction, user) {
+    if (reaction.emoji.name !== LiveAccept.EMOJI_EXTENSION) return;
+
     const member = this.guild.member(user);
-    const permissions = this.channel.permissionsFor(member);
+    const roleIDs = member?.roles.cache.keyArray();
 
-    if (permissions.has('MANAGE_CHANNELS')) return true;
+    if (!roleIDs) return;
 
-    const roles = member.roles.cache;
-    let hasAdminRole = false;
+    const adminRoles = this.config.adminRoles;
+    const allowRole = roleIDs.find(roleID => adminRoles.includes(roleID));
 
-    for (const roleID of this.config.adminRoles) {
-      hasAdminRole =  roles.has(roleID) ? true : false;
+    if (!allowRole) return;
 
-      if (hasAdminRole) break;
-    }
-
-    return hasAdminRole;
+    await this.addChannel();
   }
 
   async fillChannels() {
@@ -261,18 +220,29 @@ export default class LiveAccept {
     const nextNumber = this.liveChannels.length + 1;
     const liveConfig = this.config.liveChannel;
 
-    const newChannel = await this.guild.channels.create(`${baseName}${nextNumber}`, {
-      parent: this.parent,
-      position: this.nextPosition(),
-      topic: liveConfig.topic,
-      nsfw: liveConfig.nfsw,
-      rateLimitPerUser: liveConfig.rateLimit,
-      parent: this.parent,
-      reason: 'To increase the number of live channels.'
-    });
+    let newChannel;
+
+    try {
+      newChannel = await this.guild.channels.create(`${baseName}${nextNumber}`, {
+        parent: this.parent,
+        position: this.nextPosition(),
+        topic: liveConfig.topic,
+        nsfw: liveConfig.nfsw,
+        rateLimitPerUser: liveConfig.rateLimit,
+        parent: this.parent
+      });
+    } catch {
+      const embed = new Discord.MessageEmbed({ color: LiveAccept.COLOR_LIVE_FAILD });
+
+      embed.title = '⚠️ 実況チャンネルが作成できません';
+      if (this.guild.channels.cache.size >= 500 || this.parent?.children.size >= 50)
+        embed.description = 'サーバー、またはカテゴリー内のチャンネルが満杯です。'
+
+      await this.channel.send(embed);
+    }
 
     for (const roleID of liveConfig.restricRoles)
-      await newChannel.updateOverwrite(roleID, { 'SEND_MESSAGES': false }, 'Create live');
+      await newChannel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
 
     const liveChannel = new LiveChannel(this, newChannel);
 
@@ -292,6 +262,10 @@ export default class LiveAccept {
     return size < nextPosition ? 0 : nextPosition;
   }
 
+  /**
+   * Remove live channel.
+   * @param {number} number - The index of live channel.
+   */
   async removeChannel(number = this.channels.length - 1) {
     const liveChannel = this.liveChannels[number];
 
@@ -300,6 +274,6 @@ export default class LiveAccept {
     this.channels = this.channels.filter((_, n) => n !== number);
     this.liveChannels = this.liveChannels.filter((_, n) => n !== number);
 
-    await liveChannel.channel.delete('Delete unnecessary the live channel');
+    await liveChannel.channel.delete();
   }
 }

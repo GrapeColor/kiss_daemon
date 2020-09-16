@@ -3,23 +3,27 @@ import fs from 'fs';
 import { EventEmitter } from 'events';
 
 const defaultFile
-  = fs.readFileSync(path.resolve('src/kiss_you/assets/default_config.json'), 'utf-8');
+  = fs.readFileSync(
+    path.resolve('src/kiss_you/assets/default_config.json'), 'utf-8'
+  );
 
 import fetch from 'isomorphic-fetch';
 import pkgDropbox from 'dropbox';
 const { Dropbox } = pkgDropbox;
 
-const dropbox = new Dropbox({ accessToken: process.env['DROPBOX_TOKEN'], fetch: fetch });
+const dropbox
+  = new Dropbox({ accessToken: process.env['DROPBOX_TOKEN'], fetch: fetch });
 
 import Discord from 'discord.js';
 
 import twemojiRegex from 'twemoji-parser/dist/lib/regex.js';
 const emojiRegex
-  = new RegExp(`^${twemojiRegex.default.toString().slice(1, -9)}$|^<a?:\\w+:(\\d+)>$`);
+  = new RegExp(
+    `^${twemojiRegex.default.toString().slice(1, -9)}$|^<a?:\\w+:(\\d+)>$`
+  );
 
 /**
  * @typedef {Object} ConfigProperty
- * @property {string} guildID
  * @property {string[]} adminRoles
  * @property {LiveChannelProperty} liveChannel
  */
@@ -39,11 +43,14 @@ const emojiRegex
  * @property {number} rateLimit
  * @property {boolean} onlySelf
  * @property {boolean} pinLink
- * @property {boolean} autoDelete
  * @property {boolean} nfsw
  */
 
 export default class Config extends EventEmitter {
+  static COLOR_HELP    = 0x1587bf;
+  static COLOR_SUCCESS = 0x67b160;
+  static COLOR_FAILD   = 0xffcd60;
+
   /**
    * Configs for all guilds.
    * @type {Object.<string, Config>}
@@ -84,7 +91,7 @@ export default class Config extends EventEmitter {
     if (!this.configs[guildID])
       this.configs[guildID] = new Config(guildID, this.defaultConfigJSON);
 
-    return this.configs[guildID];
+    return this.configs[guildID].config;
   }
 
   /**
@@ -134,8 +141,7 @@ export default class Config extends EventEmitter {
     super();
 
     this.guildID = guildID;
-    this.adminRoles = json.adminRoles;
-    this.liveChannel = json.liveChannel;
+    this.config = json;
   }
 
   /**
@@ -146,7 +152,7 @@ export default class Config extends EventEmitter {
   async command(channel, message) {
     const args = message.content.split(' ').slice(1);
 
-    if (!args[0]) this.sendValues(channel);
+    if (!args[0]) await this.sendValues(channel);
 
     switch(args[0]) {
       case 'admin':
@@ -165,17 +171,16 @@ export default class Config extends EventEmitter {
    * Send command help.
    * @param {Discord.TextChannel} channel - Guils's text channel.
    */
-  sendValues(channel) {
-    const embed = new Discord.MessageEmbed;
+  async sendValues(channel) {
+    const embed = new Discord.MessageEmbed({ color: Config.COLOR_HELP });
 
-    embed.color = 0x1587bf;
     embed.title = '🇶 設定値一覧';
     embed.description = '各設定の変更方法は[ドキュメント]()をご覧ください。';
 
     embed.addFields([
       {
         name: '管理者ロール',
-        value: this.adminRoles.map(id => `<@&${id}>`).join('\n') || '```なし```'
+        value: this.config.adminRoles.map(id => `<@&${id}>`).join('\n') || '```なし```'
       },
       {
         name: '===========================================================',
@@ -183,84 +188,78 @@ export default class Config extends EventEmitter {
       },
       {
         name: '実況受付チャンネル',
-        value: this.liveChannel.acceptChannel
-          ? `<#${this.liveChannel.acceptChannel}>` : '```なし(機能無効)```',
+        value: this.config.liveChannel.acceptChannel
+          ? `<#${this.config.liveChannel.acceptChannel}>` : '```なし(機能無効)```',
         inline: true
       },
       {
         name: '実況チャンネル名',
-        value: `\`\`\`${this.liveChannel.liveName}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.liveName}\`\`\``,
         inline: true
       },
       {
         name: 'トピック',
-        value: `\`\`\`${this.liveChannel.topic || '(未設定)'}\`\`\``
+        value: `\`\`\`${this.config.liveChannel.topic || '(未設定)'}\`\`\``
       },
       {
         name: 'レート制限(秒)',
-        value: `\`\`\`${this.liveChannel.rateLimit}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.rateLimit}\`\`\``,
         inline: true
       },
       {
         name: 'NSFW',
-        value: this.liveChannel.nfsw ? '```有効```' : '```無効```',
+        value: this.config.liveChannel.nfsw ? '```有効```' : '```無効```',
         inline: true
       },
       {
         name: '実況開始可能ロール',
-        value: this.liveChannel.allowRoles.map(id => `<@&${id}>`).join('\n')
+        value: this.config.liveChannel.allowRoles.map(id => `<@&${id}>`).join('\n')
           || '```制限なし```'
       },
       {
         name: '実況チャンネル下限',
-        value: `\`\`\`${this.liveChannel.minLive}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.minLive}\`\`\``,
         inline: true
       },
       {
         name: '実況チャンネル上限',
-        value: `\`\`\`${this.liveChannel.maxLive}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.maxLive}\`\`\``,
         inline: true
       },
       {
         name: '1人あたりの実況上限',
-        value: `\`\`\`${this.liveChannel.maxOpenLive || '制限なし'}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.maxOpenLive || '制限なし'}\`\`\``,
         inline: true
       },
       {
         name: '実況終了リアクション絵文字',
-        value: channel.guild.emojis.cache.get(this.liveChannel.closeEmoji)?.toString()
-          || this.liveChannel.closeEmoji,
+        value: channel.guild.emojis.cache.get(this.config.liveChannel.closeEmoji)?.toString()
+          || this.config.liveChannel.closeEmoji,
         inline: true
       },
       {
         name: '実況終了を本人に限定',
-        value: this.liveChannel.onlySelf ? '```する```' : '```しない```',
+        value: this.config.liveChannel.onlySelf ? '```する```' : '```しない```',
         inline: true
       },
       {
         name: '実況終了後の発言無効ロール',
-        value: this.liveChannel.restricRoles.map(id => `<@&${id}>`).join('\n')
+        value: this.config.liveChannel.restricRoles.map(id => `<@&${id}>`).join('\n')
           || '```なし```'
       },
       {
         name: '実況自動終了時間(分)',
-        value: `\`\`\`${this.liveChannel.autoClose || 'なし(機能無効)'}\`\`\``,
+        value: `\`\`\`${this.config.liveChannel.autoClose || 'なし(機能無効)'}\`\`\``,
         inline: true
       },
       {
         name: '実況リンクピン止め',
-        value: this.liveChannel.pinLink ? '```する```' : '```しない```',
-        inline: true
-      },
-      {
-        name: '実況リンク自動削除',
-        value: this.liveChannel.autoDelete ? '```する```' : '```しない```',
+        value: this.config.liveChannel.pinLink ? '```する```' : '```しない```',
         inline: true
       }
     ])
 
-    channel.send('', embed)
-      .catch(console.error);
+    await channel.send(embed);
   }
 
   /**
@@ -271,7 +270,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} add - add or remove.
    */
   async setAdminRoles(channel, guild, args, add) {
-    const roles = this.adminRoles;
+    const roles = this.config.adminRoles;
     const guildRoles = guild.roles.cache;
     const setRoles = args.map(arg => arg.match(/^((\d+)|<@&(\d+)>)$/))
       .map(arg => arg && (arg[2] || arg[3]))
@@ -285,15 +284,14 @@ export default class Config extends EventEmitter {
     }
 
     if (await this.updateConfig(channel, 'adminRoles', null, roles))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ ロールが${add ? '追加' : '削除'}されました`,
           description: '設定コマンドを実行できるロール:\n'
-            + this.adminRoles.map(id => `<@&${id}>`).join(' ')
+            + this.config.adminRoles.map(id => `<@&${id}>`).join(' ')
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -353,10 +351,6 @@ export default class Config extends EventEmitter {
         if (args[1] === 'enable')  await this.setPinLink(channel, true);
         if (args[1] === 'disable') await this.setPinLink(channel, false);
         break;
-      case 'auto-delete':
-        if (args[1] === 'enable')  await this.setAutoDelete(channel, true);
-        if (args[1] === 'disable') await this.setAutoDelete(channel, false);
-        break;
       case 'nsfw':
         if (args[1] === 'enable')  await this.setNSFW(channel, true);
         if (args[1] === 'disable') await this.setNSFW(channel, false);
@@ -379,14 +373,13 @@ export default class Config extends EventEmitter {
       const accept = guild.channels.cache.get(acceptID);
   
       if (!accept || accept.type !== 'text') {
-        channel?.send('', {
+        await channel?.send('', {
           embed: {
-            color: 0xffcd60,
+            color: Config.COLOR_FAILD,
             title: '⚠️ 指定したチャンネルが有効な値ではありません',
             description: 'サーバー内のテキストチャンネルを、メンション形式かIDで指定する必要があります。'
           }
-        })
-          .catch(console.error);
+        });
   
         return;
       }
@@ -395,14 +388,13 @@ export default class Config extends EventEmitter {
     if (await this.updateConfig(channel, 'liveChannel', 'acceptChannel', acceptID)) {
       this.emit('liveAcceptUpdate');
 
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況受付チャンネルを${acceptID ? `変更` : '無効に'}しました`,
           description: acceptID ? `<#${acceptID}> で実況チャンネルを開始できます。` : ''
         }
-      })
-        .catch(console.error);
+      });
     }
   }
 
@@ -414,7 +406,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} add - add or remove.
    */
   async setAllowRoles(channel, guild, args, add) {
-    const roles = this.liveChannel.allowRoles;
+    const roles = this.config.liveChannel.allowRoles;
     const guildRoles = guild.roles.cache;
     const setRoles = args.map(arg => arg.match(/^((\d+)|<@&(\d+)>)$/))
       .map(arg => arg && (arg[2] || arg[3]))
@@ -428,15 +420,14 @@ export default class Config extends EventEmitter {
     }
 
     if (await this.updateConfig(channel, 'liveChannel', 'allowRoles', roles))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ ロールが${add ? '追加' : '削除'}されました`,
           description: '実況チャンネルを開始できるロール:\n'
-            + this.liveChannel.allowRoles.map(id => `<@&${id}>`).join(' ')
+            + this.config.liveChannel.allowRoles.map(id => `<@&${id}>`).join(' ')
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -447,7 +438,7 @@ export default class Config extends EventEmitter {
    * @param {boolean} add - add or remove.
    */
   async setRestricRoles(channel, guild, args, add) {
-    const roles = this.liveChannel.restricRoles;
+    const roles = this.config.liveChannel.restricRoles;
     const guildRoles = guild.roles.cache;
     const setRoles = args.map(arg => arg.match(/^((\d+)|<@&(\d+)>)$/))
       .map(arg => arg && (arg[2] || arg[3]))
@@ -461,15 +452,14 @@ export default class Config extends EventEmitter {
     }
 
     if (await this.updateConfig(channel, 'liveChannel', 'restricRoles', roles))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ ロールが${add ? '追加' : '削除'}されました`,
           description: '終了した実況チャンネルでメッセージ送信が無効化されるロール:\n'
-            + this.liveChannel.restricRoles.map(id => `<@&${id}>`).join(' ')
+            + this.config.liveChannel.restricRoles.map(id => `<@&${id}>`).join(' ')
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -479,25 +469,23 @@ export default class Config extends EventEmitter {
    */
   async setLiveName(channel, args) {
     if (!args[0]) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 実況チャンネル名を入力してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
 
     if (args[0].length > 90) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 実況チャンネル名は90文字以下で指定してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -505,14 +493,13 @@ export default class Config extends EventEmitter {
     if (await this.updateConfig(channel, 'liveChannel', 'liveName', args[0])) {
       this.emit('liveNameUpdate');
 
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: '✅ 実況チャンネル名を設定しました',
           description: `以降 \`${args[0]}～\` が実況チャンネルとして認識されます。`
         }
-      })
-        .catch(console.error);
+      });
     }
   }
 
@@ -526,13 +513,12 @@ export default class Config extends EventEmitter {
     const matchEmoji = args[0]?.match(emojiRegex);
 
     if (!matchEmoji) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 絵文字を1文字だけ指定してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -541,26 +527,24 @@ export default class Config extends EventEmitter {
     const isGuildEmoji = !!matchEmoji[2];
 
     if (isGuildEmoji && !guild.emojis.cache.has(emoji)) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ サーバー内に存在しない絵文字です'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
 
     if (await this.updateConfig(channel, 'liveChannel', 'closeEmoji', emoji))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: '✅ 実況チャンネルを終了させる絵文字を変更しました',
           description: `${matchEmoji[0]} で実況チャンネルを終了できます`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -572,25 +556,23 @@ export default class Config extends EventEmitter {
     const topic = args.join(' ');
 
     if (topic.length > 900) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ デフォルトトピックの文字数は900文字いかにしてください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
 
     if (await this.updateConfig(channel, 'liveChannel', 'topic', topic))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネルのデフォルトトピックを設定しました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -600,13 +582,12 @@ export default class Config extends EventEmitter {
    */
   async setMinLive(channel, args) {
     if (!/^\d+$/.test(args[0])) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 下限数を半角数字の正数で入力してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -616,13 +597,12 @@ export default class Config extends EventEmitter {
     if (await this.updateConfig(channel, 'liveChannel', 'minLive', min)) {
       this.emit('liveMinUpdate');
 
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネル数の下限値を ${min} に設定しました`
         }
-      })
-        .catch(console.error);
+      });
     }
   }
 
@@ -633,27 +613,37 @@ export default class Config extends EventEmitter {
    */
   async setMaxLive(channel, args) {
     if (!/^\d+$/.test(args[0])) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 上限数を半角数字の正数で入力してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
 
     const max = Number(args[0]);
+    const min = this.config.liveChannel.minLive;
+
+    if (max < min) {
+      await channel?.send('', {
+        embed: {
+          color: Config.COLOR_FAILD,
+          title: `⚠️ 実況チャンネル数の下限値 ${min} 以上を入力してください`
+        }
+      });
+
+      return;
+    }
 
     if (await this.updateConfig(channel, 'liveChannel', 'maxLive', max))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネル数の上限値を ${max} に設定しました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -663,15 +653,14 @@ export default class Config extends EventEmitter {
    */
   async setMaxOpenLive(channel, args) {
     if (!/^\d+$/.test(args[0])) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 上限数を半角数字の正数で入力してください',
           description: '1人のユーザーが使用できる実況チャンネルの上限数を入力してください。\n'
             + '`0` 以下の数を入力すると、機能が無効になります。'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -679,13 +668,12 @@ export default class Config extends EventEmitter {
     const max = Number(args[0]);
 
     if (await this.updateConfig(channel, 'liveChannel', 'maxOpenLive', max))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 1人あたりの実況チャンネルの上限値を${max ? ` ${max} に設定` : '無効に'}しました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -695,14 +683,13 @@ export default class Config extends EventEmitter {
    */
   async setAutoClose(channel, args) {
     if (!/^\d+$/.test(args[0])) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 設定時間(分)を半角数字の正数で入力してください',
           description: '`0` 以下の数を入力すると、機能が無効になります。'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -710,13 +697,12 @@ export default class Config extends EventEmitter {
     const limit = Number(args[0]);
 
     if (await this.updateConfig(channel, 'liveChannel', 'autoClose', limit))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 自動終了${limit ? `時間を ${limit} 分に設定` : '機能を無効に'}しました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -726,13 +712,12 @@ export default class Config extends EventEmitter {
    */
   async setRateLimit(channel, args) {
     if (!/^\d+$/.test(args[0])) {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 設定時間(秒)を半角数字の正数で入力してください'
         }
-      })
-        .catch(console.error);
+      });
 
       return;
     }
@@ -740,13 +725,12 @@ export default class Config extends EventEmitter {
     const limit = Number(args[0]);
 
     if (await this.updateConfig(channel, 'liveChannel', 'rateLimit', limit))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ デフォルトレート制限${limit ? `を ${limit} 秒に設定` : 'を無効に'}しました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -756,13 +740,12 @@ export default class Config extends EventEmitter {
    */
   async setOnlySelf(channel, enable) {
     if (await this.updateConfig(channel, 'liveChannel', 'onlySelf', enable))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネルの終了を本人に限定を${enable ? '有効' : '無効'}にしました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -772,29 +755,12 @@ export default class Config extends EventEmitter {
    */
   async setPinLink(channel, enable) {
     if (await this.updateConfig(channel, 'liveChannel', 'pinLink', enable))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ 実況チャンネルへの実況リンクピン止めを${enable ? '有効' : '無効'}にしました`
         }
-      })
-        .catch(console.error);
-  }
-
-  /**
-   * Set enable auto delete create live message.
-   * @param {Discord.TextChannel|null} channel - Guils's text channel.
-   * @param {boolean} enable - enable or disable.
-   */
-  async setAutoDelete(channel, enable) {
-    if (await this.updateConfig(channel, 'liveChannel', 'autoDelete', enable))
-      channel?.send('', {
-        embed: {
-          color: 0x67b160,
-          title: `✅ 実況リンクメッセージの自動削除を${enable ? '有効' : '無効'}にしました`
-        }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -804,13 +770,12 @@ export default class Config extends EventEmitter {
    */
   async setNSFW(channel, enable) {
     if (await this.updateConfig(channel, 'liveChannel', 'nfsw', enable))
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0x67b160,
+          color: Config.COLOR_SUCCESS,
           title: `✅ デフォルトNSFWを${enable ? '有効' : '無効'}にしました`
         }
-      })
-        .catch(console.error);
+      });
   }
 
   /**
@@ -824,16 +789,16 @@ export default class Config extends EventEmitter {
     let oldValue;
 
     if (key2) {
-      oldValue = this[key1][key2];
-      this[key1][key2] = value;
+      oldValue = this.config[key1][key2];
+      this.config[key1][key2] = value;
     } else {
-      oldValue = this[key1];
-      this[key1] = value;
+      oldValue = this.config[key1];
+      this.config[key1] = value;
     }
 
     try {
       await dropbox.filesUpload({
-        contents: JSON.stringify(this),
+        contents: JSON.stringify(this.config),
         path: `/${this.guildID}.json`,
         mode: { '.tag': 'overwrite' },
         autorename: false,
@@ -841,16 +806,15 @@ export default class Config extends EventEmitter {
         strict_conflict: false
       });
     } catch {
-      channel?.send('', {
+      await channel?.send('', {
         embed: {
-          color: 0xffcd60,
+          color: Config.COLOR_FAILD,
           title: '⚠️ 設定値の変更に失敗しました',
           description: '設定データのアップロードに失敗しました。しばらく経ってから、再度お試しください。'
         }
-      })
-        .catch(console.error);
+      });
 
-      key2 ? this[key1][key2] = oldValue : this[key1] = oldValue;
+      key2 ? this.config[key1][key2] = oldValue : this.config[key1] = oldValue;
 
       return false;
     }
