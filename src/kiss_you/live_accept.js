@@ -1,4 +1,4 @@
-import Discord, { ReactionEmoji } from 'discord.js';
+import Discord from 'discord.js';
 
 import Config from './config.js';
 import LiveChannel from './live_channel.js';
