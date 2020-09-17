@@ -342,7 +342,7 @@ export default class Config extends EventEmitter {
       case 'auto-close':
         await this.setAutoClose(channel, args.slice(1));
         break;
-      case 'ratelimit':
+      case 'rate-limit':
         await this.setRateLimit(channel, args.slice(1));
         break;
       case 'only-self':
@@ -596,13 +596,16 @@ export default class Config extends EventEmitter {
 
     const min = Number(args[0]);
 
+    if (min > this.config.liveChannel.maxLive)
+      await this.setMaxLive(null, [`${min}`]);
+
     if (await this.updateConfig(channel, 'liveChannel', 'minLive', min)) {
       this.emit('liveMinUpdate');
 
       await channel?.send('', {
         embed: {
           color: Config.COLOR_SUCCESS,
-          title: `✅ 実況チャンネル数の下限値を ${min} に設定しました`
+          title: `✅ 実況チャンネル数の上限値と下限値を ${min} に設定しました`
         }
       });
     }
