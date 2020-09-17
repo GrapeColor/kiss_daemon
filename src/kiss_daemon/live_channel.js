@@ -201,7 +201,6 @@ export default class LiveChannel {
       const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_OPENED });
 
       embed.title = '🔴 実況を開始しました';
-      embed.url = trigger.url;
 
       await this.channel.send(embed);
 
