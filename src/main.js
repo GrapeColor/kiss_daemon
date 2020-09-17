@@ -1,6 +1,6 @@
-import KissYou from './kiss_you/index.mjs';
+import KissDaemon from './kiss_daemon/index.mjs';
 
-const kissYou = new KissYou();
+const kissDaemon = new KissDaemon();
 
-kissYou.login(process.env['KISS_DAEMON_TOKEN'])
+kissDaemon.login(process.env['KISS_DAEMON_TOKEN'])
   .catch(console.error);

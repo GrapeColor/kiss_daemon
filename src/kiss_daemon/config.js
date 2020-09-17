@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 
 const defaultFile
   = fs.readFileSync(
-    path.resolve('src/kiss_you/assets/default_config.json'), 'utf-8'
+    path.resolve('src/kiss_daemon/assets/default_config.json'), 'utf-8'
   );
 
 import fetch from 'isomorphic-fetch';

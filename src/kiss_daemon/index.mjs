@@ -4,7 +4,7 @@ import Config from './config.js';
 import LiveAccept from './live_accept.js';
 import LiveChannel from './live_channel.js';
 
-export default class KissYou {
+export default class KissDaemon {
   constructor() {
     this.bot = new Client({
       ws: { intents: Intents.NON_PRIVILEGED },
@@ -33,7 +33,7 @@ export default class KissYou {
   }
 
   /**
-   * KissYou login to discord.
+   * Kiss Daemon login to discord.
    * @param {string} token - Discord client token.
    */
   async login(token) {
