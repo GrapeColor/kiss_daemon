@@ -323,7 +323,7 @@ export default class LiveChannel {
 
     if (autoClose)
       embed.description += `実況チャンネルで ${autoClose} 分以上メッセージ送信がないため、`
-        + '実況が自動で終了しました。\n';
+        + '実況が自動で終了しました。\n\n';
 
     embed.description += `実況時間: ${liveTerm}`;
 
@@ -363,17 +363,12 @@ export default class LiveChannel {
         = lastMessages.find(message => !message.author.bot && !message.author.system);
     }
 
-    let lastSendTime;
+    lastMessage = lastMessage ?? this.response;
 
-    if (lastMessage)
-      lastSendTime = this.channel.lastMessage.createdTimestamp;
-    else
-      lastSendTime = this.response.createdTimestamp;
-
-    const time = (Date.now() - lastSendTime) / 1000 / 60;
+    const time = (Date.now() - lastMessage.createdTimestamp) / 1000 / 60;
 
     if (time > autoClose){
-      this.close(autoClose);
+      await this.close(autoClose);
       return;
     }
 
