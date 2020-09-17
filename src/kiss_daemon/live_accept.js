@@ -316,7 +316,7 @@ export default class LiveAccept {
     const regex = new RegExp(`(\\d{1,3})$`);
     const matchNumber = lastChannel.name.match(regex);
 
-    return Number(matchNumber) + 1;
+    return Number(matchNumber[1]) + 1;
   }
 
   /**
