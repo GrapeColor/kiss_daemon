@@ -453,7 +453,9 @@ export default class Config extends EventEmitter {
       roles = roles.filter(roleID => !setRoles.includes(roleID));
     }
 
-    if (await this.updateConfig(channel, 'liveChannel', 'restricRoles', roles))
+    if (await this.updateConfig(channel, 'liveChannel', 'restricRoles', roles)) {
+      this.emit('liveRestricUpdate');
+
       await channel?.send('', {
         embed: {
           color: Config.COLOR_SUCCESS,
@@ -462,6 +464,7 @@ export default class Config extends EventEmitter {
             + this.config.liveChannel.restricRoles.map(id => `<@&${id}>`).join(' ')
         }
       });
+    }
   }
 
   /**

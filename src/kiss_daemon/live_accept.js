@@ -55,7 +55,7 @@ export default class LiveAccept {
    */
   constructor(guild) {
     this.guild = guild;
-    this.configTaken = Config.take(guild.id);
+    this.configTake = Config.take(guild.id);
     this.config = Config.read(guild.id);
 
     this.channel = this.initAccept();
@@ -71,13 +71,16 @@ export default class LiveAccept {
     for (const live of Object.values(this.liveChannels)) live.checkLiving()
       .catch(console.error);
 
-    this.configTaken.on('liveAcceptUpdate', () => this.updateAccept()
+    this.configTake.on('liveAcceptUpdate', () => this.updateAccept()
       .catch(console.error));
 
-    this.configTaken.on('liveNameUpdate', () => this.updateChannels()
+    this.configTake.on('liveNameUpdate', () => this.updateChannels()
       .catch(console.error));
 
-    this.configTaken.on('liveMinUpdate', () => this.fillChannels()
+    this.configTake.on('liveMinUpdate', () => this.fillChannels()
+      .catch(console.error));
+
+    this.configTake.on('liveRestricUpdate', () => this.updateRestricRoles()
       .catch(console.error));
   }
 
@@ -143,6 +146,17 @@ export default class LiveAccept {
 
     await this.configTaken.setMinLive(null, [`${this.channels.length}`]);
     await this.configTaken.setMaxLive(null, [`${this.channels.length}`]);
+  }
+
+  /**
+   * Update roles of live channel.
+   */
+  async updateRestricRoles() {
+    const restricRoles = this.config.liveChannel.restricRoles;
+
+    for (const live of Object.values(this.liveChannels))
+      for (const roleID of restricRoles)
+        await live.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': live.living });
   }
 
   /**
@@ -241,7 +255,7 @@ export default class LiveAccept {
     let hasAdminRole = false;
 
     for (const roleID of this.config.adminRoles) {
-      hasAdminRole =  roles.has(roleID) ? true : false;
+      hasAdminRole = roles.has(roleID) ? true : false;
 
       if (hasAdminRole) break;
     }
