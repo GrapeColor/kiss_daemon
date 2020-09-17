@@ -323,7 +323,7 @@ export default class LiveChannel {
 
     if (autoClose)
       embed.description += `実況チャンネルで ${autoClose} 分以上メッセージ送信がないため、`
-        + '自動で実況が終了しました。\n';
+        + '実況が自動で終了しました。\n';
 
     embed.description += `実況時間: ${liveTerm}`;
 
@@ -360,7 +360,7 @@ export default class LiveChannel {
     if (!lastMessage || lastMessage.author.bot || lastMessage.author.system) {
       const lastMessages = await this.channel.messages.fetch({ limit: 10 });
       lastMessage
-        = lastMessages.find(message => !message.author.bot || !message.author.system);
+        = lastMessages.find(message => !message.author.bot && !message.author.system);
     }
 
     let lastSendTime;
@@ -380,8 +380,8 @@ export default class LiveChannel {
     if (Math.floor(time) === 5) {
       const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_ALERT });
 
-      embed.title = '⏲️ あと5分で自動で実況が終了します';
-      embed.description = '5分以内にメッセージの送信がない場合は、自動で実況が終了します。';
+      embed.title = '⏲️ あと5分で実況が自動で終了します';
+      embed.description = '5分以内にメッセージの送信がない場合は、実況が自動で終了します。';
 
       await this.channel.send(embed);
     }
