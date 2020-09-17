@@ -228,13 +228,13 @@ export default class Config extends EventEmitter {
           || '```制限なし```'
       },
       {
-        name: '実況チャンネル下限',
-        value: `\`\`\`${this.config.liveChannel.minLive}\`\`\``,
+        name: '実況チャンネル上限',
+        value: `\`\`\`${this.config.liveChannel.maxLive}\`\`\``,
         inline: true
       },
       {
-        name: '実況チャンネル上限',
-        value: `\`\`\`${this.config.liveChannel.maxLive}\`\`\``,
+        name: '実況チャンネル下限',
+        value: `\`\`\`${this.config.liveChannel.minLive}\`\`\``,
         inline: true
       },
       {
@@ -666,7 +666,7 @@ export default class Config extends EventEmitter {
         embed: {
           color: Config.COLOR_FAILD,
           title: '⚠️ 設定時間(分)を半角数字の正数で入力してください',
-          description: '`0` 以下の数を入力すると、機能が無効になります。'
+          description: '`0` を入力すると、機能が無効になります。'
         }
       });
 

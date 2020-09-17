@@ -322,7 +322,7 @@ export default class LiveChannel {
     embed.description = '';
 
     if (autoClose)
-      embed.description += `実況チャンネルで ${autoClose} 分以上メッセージ送信がないため、`
+      embed.description += `実況チャンネルで ${autoClose} 分以上メッセージの送信がないため、`
         + '実況が自動で終了しました。\n\n';
 
     embed.description += `実況時間: ${liveTerm}`;
