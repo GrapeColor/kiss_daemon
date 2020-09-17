@@ -357,9 +357,10 @@ export default class LiveChannel {
 
     let lastMessage = this.channel.lastMessage;
 
-    if (!lastMessage || lastMessage.author.bot) {
+    if (!lastMessage || lastMessage.author.bot || lastMessage.author.system) {
       const lastMessages = await this.channel.messages.fetch({ limit: 10 });
-      lastMessage = lastMessages.find(message => !message.author.bot);
+      lastMessage
+        = lastMessages.find(message => !message.author.bot || !message.author.system);
     }
 
     let lastSendTime;

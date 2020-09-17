@@ -117,7 +117,8 @@ export default class Config extends EventEmitter {
     bot.on('message', message => {
       const channel = message.channel;
 
-      if (channel.type !== 'text' || message.author.bot) return;
+      if (channel.type !== 'text' || message.author.bot || message.author.system)
+        return;
 
       if (this.botMentionRegex.test(message.content))
         this.parseCommand(channel, message)

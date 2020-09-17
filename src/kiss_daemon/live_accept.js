@@ -14,7 +14,8 @@ export default class LiveAccept {
     bot.on('message', message => {
       const channel = message.channel;
 
-      if (channel.type !== 'text' || message.author.bot) return;
+      if (channel.type !== 'text' || message.author.bot || message.author.system)
+        return;
 
       if (/https?:\/\/[\w!?/+\-_~;.,*&@#$%()'[\]]+/.test(message.content))
         this.liveAccepts[channel.id]?.startLive(message)
