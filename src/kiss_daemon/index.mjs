@@ -12,7 +12,8 @@ export default class KissDaemon {
     });
 
     this.bot.on('ready', () => {
-      this.bot.user?.setActivity('URLを貼って実況スタート', { type: 'PLAYING' });
+      this.bot.user.setActivity('URLを貼って実況スタート', { type: 'PLAYING' })
+        .catch(console.error);
     });
 
     Config.events(this.bot);
