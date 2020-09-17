@@ -347,12 +347,28 @@ export default class LiveChannel {
     return `${day ? `${day}日` : ''}${hour ? `${hour}時間` : ''}${min ? `${min}分`: ''}`;
   }
 
+  /**
+   * Determine if the live should end automatically.
+   */
   async autoClose() {
     const autoClose = this.config.liveChannel.autoClose;
 
     if (!autoClose) return;
 
-    const lastSendTime = this.channel.lastMessage.createdTimestamp;
+    let lastMessage = this.channel.lastMessage;
+
+    if (!lastMessage || lastMessage.author.bot) {
+      const lastMessages = await this.channel.messages.fetch({ limit: 10 });
+      lastMessage = lastMessages.find(message => !message.author.bot);
+    }
+
+    let lastSendTime;
+
+    if (lastMessage)
+      lastSendTime = this.channel.lastMessage.createdTimestamp;
+    else
+      lastSendTime = this.response.createdTimestamp;
+
     const time = (Date.now() - lastSendTime) / 1000 / 60;
 
     if (time > autoClose){

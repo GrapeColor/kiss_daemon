@@ -211,7 +211,7 @@ export default class LiveAccept {
   }
 
   /**
-   * 
+   * Extension live.
    * @param {Discord.MessageReaction} reaction 
    * @param {Discord.User} user 
    */
