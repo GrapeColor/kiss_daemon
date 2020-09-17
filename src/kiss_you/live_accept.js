@@ -62,10 +62,13 @@ export default class LiveAccept {
     this.parent = this.channel?.parent;
 
     this.channels = this.initChannels();
-    this.liveChannels
-      = this.channels.map((channel, n) => new LiveChannel(this, channel, n));
+    /** @type {Object.<string, LiveChannel>} */
+    this.liveChannels = {};
 
-    for (const live of this.liveChannels) live.checkLiving()
+    for (const channel of this.channels)
+      this.liveChannels[channel.id] = new LiveChannel(this, channel);
+
+    for (const live of Object.values(this.liveChannels)) live.checkLiving()
       .catch(console.error);
 
     this.configTaken.on('liveAcceptUpdate', () => this.updateAccept()
@@ -116,7 +119,7 @@ export default class LiveAccept {
   initChannels() {
     if (!this.channel) return [];
 
-    const liveRegex = new RegExp(`^${this.config.liveChannel.liveName}\\d{1,3}`);
+    const liveRegex = new RegExp(`^${this.config.liveChannel.liveName}\\d{1,3}$`);
     const channels = this.parent?.children || this.guild.channels.cache;
 
     return channels
@@ -130,7 +133,13 @@ export default class LiveAccept {
    */
   async updateChannels() {
     this.channels = this.initChannels();
-    this.liveChannels = this.channels.map(channel => new LiveChannel(this, channel));
+    this.liveChannels = {};
+
+    for (const channel of this.channels)
+      this.liveChannels[channel.id] = new LiveChannel(this, channel);
+
+    for (const live of Object.values(this.liveChannels)) live.checkLiving()
+      .catch(console.error);
 
     await this.configTaken.setMinLive(null, [`${this.channels.length}`]);
     await this.configTaken.setMaxLive(null, [`${this.channels.length}`]);
@@ -153,10 +162,10 @@ export default class LiveAccept {
     if (allowRoles.length && !allowRole && !this.isAllowUser(member)) return;
 
     const maxLive = this.config.liveChannel.maxLive;
-    let stillChannel = this.liveChannels.find(live => !live.living);
+    let stillChannel = Object.values(this.liveChannels).find(live => !live.living);
 
     if (!stillChannel) {
-      if (this.liveChannels.length < maxLive) stillChannel = await this.addChannel();
+      if (this.channels.length < maxLive) stillChannel = await this.addChannel();
       else {
         const embed = new Discord.MessageEmbed({ color: LiveAccept.COLOR_LIVE_FULL });
 
@@ -177,12 +186,14 @@ export default class LiveAccept {
 
   /**
    * End live.
-   * @param {number} number 
+   * @param {string} channelID 
    */
-  async endLive(number) {
+  async endLive(channelID) {
+    const number = this.channels.findIndex(channel => channel.id === channelID);
+
     if (number <= this.config.liveChannel.minLive) return;
 
-    await this.removeChannel(number);
+    await this.removeChannel(channelID);
   }
 
   /**
@@ -256,20 +267,21 @@ export default class LiveAccept {
    */
   async addChannel() {
     const baseName = this.config.liveChannel.liveName;
-    const nextNumber = this.liveChannels.length + 1;
     const liveConfig = this.config.liveChannel;
 
     let newChannel;
 
     try {
-      newChannel = await this.guild.channels.create(`${baseName}${nextNumber}`, {
-        parent: this.parent,
-        position: this.nextPosition(),
-        topic: liveConfig.topic,
-        nsfw: liveConfig.nfsw,
-        rateLimitPerUser: liveConfig.rateLimit,
-        parent: this.parent
-      });
+      newChannel = await this.guild.channels.create(
+        `${baseName}${this.nextNumber()}`, {
+          parent: this.parent,
+          position: this.nextPosition(),
+          topic: liveConfig.topic,
+          nsfw: liveConfig.nfsw,
+          rateLimitPerUser: liveConfig.rateLimit,
+          parent: this.parent
+        }
+      );
     } catch {
       const embed = new Discord.MessageEmbed({ color: LiveAccept.COLOR_LIVE_FAILD });
 
@@ -288,9 +300,23 @@ export default class LiveAccept {
     await liveChannel.checkLiving();
 
     this.channels.push(newChannel);
-    this.liveChannels.push(liveChannel);
+    this.liveChannels[newChannel.id] = liveChannel;
 
     return liveChannel;
+  }
+
+  /**
+   * Calculate the number of the channel to add.
+   */
+  nextNumber() {
+    const lastChannel = this.channels.slice(-1)[0];
+
+    if (!lastChannel) return 1;
+
+    const regex = new RegExp(`(\\d{1,3})$`);
+    const matchNumber = lastChannel.name.match(regex);
+
+    return Number(matchNumber) + 1;
   }
 
   /**
@@ -305,15 +331,17 @@ export default class LiveAccept {
 
   /**
    * Remove live channel.
-   * @param {number} number - The index of live channel.
+   * @param {string} channelID - The index of live channel.
    */
-  async removeChannel(number = this.channels.length - 1) {
-    const liveChannel = this.liveChannels[number];
+  async removeChannel(channelID = '') {
+    if (!channelID) channelID = this.channels.slice(-1)[0].id;
+
+    const liveChannel = this.liveChannels[channelID];
 
     if (liveChannel.living) return;
 
-    this.channels = this.channels.filter((_, n) => n !== number);
-    this.liveChannels = this.liveChannels.filter((_, n) => n !== number);
+    this.channels = this.channels.filter(channel => channel.id !== channelID);
+    delete this.liveChannels[channelID];
 
     await liveChannel.channel.delete();
   }

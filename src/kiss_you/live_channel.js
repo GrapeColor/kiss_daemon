@@ -28,11 +28,12 @@ export default class LiveChannel {
     bot.setInterval(() => this.checkTimeout(), 60000);
   }
 
-  static LIVE_REGEX = /^<LIVE_(CLOSED|OPENED:(\d+):(\d+):(\d+))>$/;
+  static LIVE_REGEX
+    = /^<LIVE_(CLOSED|OPENED:(?<triggerID>\d+):(?<replicaID>\d+):(?<responseID>\d+))>$/;
 
   static COLOR_LIVE_OPENED   = 0xed3544;
   static COLOR_LIVE_CLOSED   = 0xe6e7e8;
-  static COLOR_LIVE_CANCELED = 0xffcd60;
+  static COLOR_LIVE_CANCELED = 0x1587bf;
   static COLOR_LIVE_ABORTED  = 0xffcd60;
   static COLOR_LIVE_ALERT    = 0x9867c6;
 
@@ -62,14 +63,12 @@ export default class LiveChannel {
    * Initialize live channel.
    * @param {LiveAccept} accept - Live accept.
    * @param {Discord.TextChannel} channel - Live channel.
-   * @param {number} number - Index of live channel.
    */
-  constructor(accept, channel, number) {
+  constructor(accept, channel) {
     this.accept = accept;
     this.config = accept.config;
     this.channel = channel;
     this.guild = channel.guild;
-    this.number = number;
 
     this.bot = channel.client;
 
@@ -98,13 +97,13 @@ export default class LiveChannel {
 
     const match = webhook.name.match(LiveChannel.LIVE_REGEX);
 
-    this.living = !!match[2];
+    this.living = !!match.groups.triggerID;
 
     if (!this.living) return;
 
-    const trigger  = await this.accept.channel.messages.fetch(match[2]);
-    const replica  = await this.channel.messages.fetch(match[3]);
-    const response = await this.accept.channel.messages.fetch(match[4]);
+    const trigger  = await this.accept.channel.messages.fetch(match.groups.triggerID);
+    const replica  = await this.channel.messages.fetch(match.groups.replicaID);
+    const response = await this.accept.channel.messages.fetch(match.groups.responseID);
 
     if (!trigger || !replica || !response) return;
 
@@ -254,6 +253,9 @@ export default class LiveChannel {
       .catch(console.error);
 
     this.exitLiving();
+
+    this.accept.endLive(this.channel.id)
+      .catch(console.error);
   }
 
   /**
@@ -277,12 +279,25 @@ export default class LiveChannel {
 
     const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_CANCELED });
 
-    embed.title = '🚫 実況がキャンセルされました';
+    embed.title = '↩️ 実況がキャンセルされました';
 
     await this.channel.send(embed);
+
+    embed.description = '60秒後にこのメッセージは削除されます。';
+
     await this.response.edit(embed);
 
+    const response = this.response;
+
+    this.bot.setTimeout(
+      () => response.delete()
+        .catch(console.error),
+      60000
+    );
+
     this.exitLiving();
+
+    await this.accept.endLive(this.channel.id);
   }
 
   /**
@@ -317,7 +332,7 @@ export default class LiveChannel {
 
     this.exitLiving();
 
-    await this.accept.endLive(this.number);
+    await this.accept.endLive(this.channel.id);
   }
 
   calcLiveTime() {
