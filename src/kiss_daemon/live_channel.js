@@ -363,7 +363,8 @@ export default class LiveChannel {
         = lastMessages.find(message => !message.author.bot && !message.author.system);
     }
 
-    lastMessage = lastMessage ?? this.response;
+    if (!lastMessage || lastMessage.createdTimestamp < this.response.createdTimestamp)
+      lastMessage = this.response;
 
     const time = (Date.now() - lastMessage.createdTimestamp) / 1000 / 60;
 
