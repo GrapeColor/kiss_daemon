@@ -206,7 +206,7 @@ export default class LiveAccept {
   async endLive(channelID) {
     const number = this.channels.findIndex(channel => channel.id === channelID);
 
-    if (number <= this.config.liveChannel.minLive) return;
+    if (number < this.config.liveChannel.minLive) return;
 
     await this.removeChannel(channelID);
   }
