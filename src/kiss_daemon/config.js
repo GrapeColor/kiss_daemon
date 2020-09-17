@@ -306,11 +306,11 @@ export default class Config extends EventEmitter {
    */
   async commandLive(channel, args) {
     switch (args[0]) {
-      case 'accept':
-        if (args[1] === 'set')
-          await this.setAccept(channel, channel.guild, args.slice(2), true);
-        if (args[1] === 'remove')
-          await this.setAccept(channel, channel.guild, args.slice(2), false);
+      case 'set':
+        await this.setAccept(channel, channel.guild, args.slice(2), true);
+        break;
+      case 'remove':
+        await this.setAccept(channel, channel.guild, args.slice(2), false);
         break;
       case 'allow':
         if (args[1] === 'add')
