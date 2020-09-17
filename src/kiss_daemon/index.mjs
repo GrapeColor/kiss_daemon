@@ -12,19 +12,7 @@ export default class KissDaemon {
     });
 
     this.bot.on('ready', () => {
-      this.bot.user?.setActivity('塞いでやるよ俺のこの唇でな', { type: 'PLAYING' });
-    });
-
-    this.bot.on('message', message => {
-      if (message.channel.type !== 'dm' || message.author.bot) return;
-
-      message.channel.send(
-        'うるせぇDMだな、塞いでやるよ俺のこの唇でな(っ◝💋◜c)'
-        + 'ぶちゅちゅちゅるちゅるちゅちゅ💗💗💗'
-        + 'とぅるちゅるちゅるぶっちゅちゅちゅ💗💗💗💗💗💗'
-        +'(っ◝💋◜c)んーっまっ💗んま💗っ💗💗んまっ💗💗んーっ( っ`-´c)💗'
-      )
-        .catch(console.error);
+      this.bot.user?.setActivity('URLを貼って実況スタート', { type: 'PLAYING' });
     });
 
     Config.events(this.bot);
