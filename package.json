@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "14.4.0"
+  },
   "name": "kiss_daemon",
   "version": "1.0.0",
   "description": "",
