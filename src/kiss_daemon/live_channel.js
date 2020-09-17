@@ -11,7 +11,14 @@ export default class LiveChannel {
     bot.on('messageReactionAdd', (reaction, user) => {
       if (user.bot) return;
 
-      this.liveResponses[reaction.message.id]?.reactionBranching(reaction, user)
+      this.liveResponses[reaction.message.id]?.reactionClose(reaction)
+        .catch(console.error);
+    });
+
+    bot.on('messageReactionRemove', (reaction, user) => {
+      if (user.bot) return;
+
+      this.liveResumables[reaction.message.id]?.reactionResume(reaction)
         .catch(console.error);
     });
 
@@ -24,8 +31,6 @@ export default class LiveChannel {
       this.liveTriggers[message.id]?.edit(message)
         .catch(console.error);
     });
-
-    bot.setInterval(() => this.checkTimeout(), 60000);
   }
 
   static LIVE_REGEX
@@ -34,20 +39,24 @@ export default class LiveChannel {
   static COLOR_LIVE_OPENED   = 0xed3544;
   static COLOR_LIVE_CLOSED   = 0xe6e7e8;
   static COLOR_LIVE_CANCELED = 0x1587bf;
-  static COLOR_LIVE_ABORTED  = 0xffcd60;
-  static COLOR_LIVE_ALERT    = 0x9867c6;
 
   /**
-   * Triggers of open live channels.
+   * Triggers of opened live channels.
    * @type {Object.<string, LiveChannel>}
    */
   static liveTriggers = {};
 
   /**
-   * Responses of open live channels.
+   * Responses of opened live channels.
    * @type {Object.<string, LiveChannel>}
    */
   static liveResponses = {};
+
+  /**
+   * Resumable of live channels.
+   * @type {Object.<string, LiveChannel>}
+   */
+  static liveResumables = {};
 
   /**
    * Check timeout lives.
@@ -68,7 +77,6 @@ export default class LiveChannel {
     this.accept = accept;
     this.config = accept.config;
     this.channel = channel;
-    this.guild = channel.guild;
 
     this.bot = channel.client;
 
@@ -79,6 +87,10 @@ export default class LiveChannel {
     this.trigger  = undefined;
     this.replica  = undefined;
     this.response = undefined;
+
+    this.lastTrigger  = undefined;
+    this.lastReplica  = undefined;
+    this.lastResponse = undefined;
   }
 
   /**
@@ -119,12 +131,22 @@ export default class LiveChannel {
   entryLiving(trigger, replica, response) {
     this.living = true;
 
+    delete LiveChannel.liveResumables[this.lastResponse];
+
     this.trigger  = trigger;
     this.replica  = replica;
     this.response = response;
 
     LiveChannel.liveTriggers[trigger.id]   = this;
     LiveChannel.liveResponses[response.id] = this;
+  }
+
+  entryResumable() {
+    this.lastTrigger  = this.trigger;
+    this.lastReplica  = this.replica;
+    this.lastResponse = this.response;
+
+    LiveChannel.liveResumables[this.lastResponse.id] = this;
   }
 
   /**
@@ -142,44 +164,27 @@ export default class LiveChannel {
   }
 
   /**
-   * Branch processing of reaction event.
+   * Verify if it end.
    * @param {Discord.MessageReaction} reaction 
-   * @param {Discord.User} user 
    */
-  async reactionBranching(reaction, user) {
+  async reactionClose(reaction) {
     const emoji = reaction.emoji;
+    const closeEmoji = this.config.closeEmoji;
 
-    const liveConfig = this.config.liveChannel;
-    const closeEmoji = liveConfig.closeEmoji;
-    const member = await this.guild.members.fetch(user);
-
-    if ((emoji.id ?? emoji.name) === closeEmoji) {
-      if ((liveConfig.onlySelf && user.id !== this.trigger.author.id)
-        && !this.isAllowUser(member)) return;
-
-      await this.close();
-    }
+    if ((emoji.id ?? emoji.name) === closeEmoji) await this.close();
   }
 
   /**
-   * Is the user allowed to operate?
-   * @param {Discord.GuildMember} member 
+   * Verify if it resume.
+   * @param {Discord.MessageReaction} reaction 
    */
-  async isAllowUser(member) {
-    const permissions = this.accept.channel.permissionsFor(member);
+  async reactionResume(reaction) {
+    if (reaction.count > 0) return;
 
-    if (permissions.has('MANAGE_CHANNELS')) return true;
+    const emoji = reaction.emoji;
+    const closeEmoji = this.config.closeEmoji;
 
-    const roles = member.roles.cache;
-    let hasAdminRole = false;
-
-    for (const roleID of this.config.adminRoles) {
-      hasAdminRole =  roles.has(roleID) ? true : false;
-
-      if (hasAdminRole) break;
-    }
-
-    return hasAdminRole;
+    if ((emoji.id ?? emoji.name) === closeEmoji) await this.resume();
   }
 
   /**
@@ -187,42 +192,63 @@ export default class LiveChannel {
    * @param {Discord.Message} trigger 
    */
   async open(trigger) {
-    const liveConfig = this.config.liveChannel;
-    const member = await this.guild.members.fetch(trigger.author);
-
     let replica, response;
 
     this.living = true;
 
     try {
-      for (const roleID of liveConfig.restricRoles)
-        await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': true });
-
-      const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_OPENED });
-
-      embed.title = '🔴 実況を開始しました';
+      const embed = new Discord.MessageEmbed({
+        color: LiveChannel.COLOR_LIVE_OPENED,
+        title: '🔴 実況を開始しました'
+      });
 
       await this.channel.send(embed);
 
       replica = await this.channel.send(trigger.content);
 
-      if (liveConfig.pinLink) await replica.pin();
+      if (this.config.pinMessage) await replica.pin();
 
-      response = await trigger.channel.send(
-        embed.setDescription(`実況はこちら ➡️ ${this.channel}`)
-          .setFooter(
-            `実況が終わったら${liveConfig.onlySelf ? ` ${member.displayName} さんが` : ''}`
-              + '下のリアクションをクリック'
-          )
-      );
+      response = await trigger.channel.send(`🔴 **実況を開始しました** ${this.channel}`);
 
       await this.webhook.edit({
         name: `<LIVE_OPENED:${trigger.id}:${replica.id}:${response.id}>`
       });
-  
-      await response.react(liveConfig.closeEmoji);
     } catch (error) {
-      this.abort(trigger);
+      this.abort();
+
+      throw error;
+    }
+
+    this.entryLiving(trigger, replica, response);
+  }
+
+  /**
+   * Resume the live channel.
+   */
+  async resume() {
+    this.living = true;
+
+    const trigger  = this.lastTrigger;
+    const replica  = this.lastReplica;
+    const response = this.lastResponse;
+
+    try {
+      const embed = new Discord.MessageEmbed({
+        color: LiveChannel.COLOR_LIVE_OPENED,
+        title: '🔴 実況を再開しました'
+      });
+
+      await this.channel.send(embed);
+
+      if (this.config.pinMessage) await replica.pin();
+
+      await response.edit(`🔴 **実況を再開しました** ${this.channel}`);
+
+      await this.webhook.edit({
+        name: `<LIVE_OPENED:${trigger.id}:${replica.id}:${response.id}>`
+      });
+    } catch (error) {
+      this.abort();
 
       throw error;
     }
@@ -232,30 +258,12 @@ export default class LiveChannel {
 
   /**
    * Abort the opening of the live channel.
-   * @param {Discord.Message} message - Event trigger message.
    */
-  abort(message) {
+  abort() {
     this.webhook.edit({ name: '<LIVE_CLOSED>' })
       .catch(console.error);
 
-    try {
-      for (const roleID of this.config.liveChannel.restricRoles)
-        this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
-    } catch (error) {
-      console.error(error);
-    }
-
-    const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_ABORTED });
-
-    embed.title = '⚠️ 実況の開始に失敗しました';
-
-    message.channel.send(embed)
-      .catch(console.error);
-
     this.exitLiving();
-
-    this.accept.endLive(this.channel.id)
-      .catch(console.error);
   }
 
   /**
@@ -268,123 +276,39 @@ export default class LiveChannel {
    * Cancel the live channel.
    */
   async cancel() {
-    await this.response.reactions.removeAll();
-
     await this.webhook.edit({ name: '<LIVE_CLOSED>' });
 
-    for (const roleID of this.config.liveChannel.restricRoles)
-      await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
+    await this.response.delete();
+    await this.replica.delete();
 
-    await this.replica.unpin();
-
-    const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_CANCELED });
-
-    embed.title = '↩️ 実況がキャンセルされました';
+    const embed = new Discord.MessageEmbed({
+      color: LiveChannel.COLOR_LIVE_CANCELED,
+      title: '↩️ 実況がキャンセルされました'
+    });
 
     await this.channel.send(embed);
 
-    embed.description = '60秒後にこのメッセージは削除されます。';
-
-    await this.response.edit(embed);
-
-    const response = this.response;
-
-    this.bot.setTimeout(
-      () => response.delete()
-        .catch(console.error),
-      60000
-    );
-
     this.exitLiving();
-
-    await this.accept.endLive(this.channel.id);
   }
 
   /**
    * Close the live channel.
-   * @param {number} autoClose - Is auto..
    */
-  async close(autoClose = 0) {
-    await this.response.reactions.removeAll();
-
+  async close() {
     await this.webhook.edit({ name: '<LIVE_CLOSED>' });
-
-    for (const roleID of this.config.liveChannel.restricRoles)
-      await this.channel.updateOverwrite(roleID, { 'SEND_MESSAGES': false });
 
     await this.replica.unpin();
 
-    const liveTerm = this.calcLiveTime();
-
-    const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_CLOSED });
-
-    embed.title = '⚪ 実況が終了しました';
-    embed.description = '';
-
-    if (autoClose)
-      embed.description += `実況チャンネルで ${autoClose} 分以上メッセージの送信がないため、`
-        + '実況が自動で終了しました。\n\n';
-
-    embed.description += `実況時間: ${liveTerm}`;
+    const embed = new Discord.MessageEmbed({
+      color: LiveChannel.COLOR_LIVE_CLOSED,
+      title: '⚪ 実況が終了しました'
+    });
 
     await this.channel.send(embed);
-    await this.response.edit(embed);
+    await this.response.edit('⚪ **実況が終了しました**');
+
+    this.entryResumable();
 
     this.exitLiving();
-
-    await this.accept.endLive(this.channel.id);
   }
-
-  calcLiveTime() {
-    const time = Date.now() - this.response.createdTimestamp;
-    const day  = Math.floor(time / 1000 / 60 / 60 / 24);
-    const hour = Math.floor(time / 1000 / 60 / 60 % 24);
-    const min  = Math.floor(time / 1000 / 60 % 60);
-    const sec  = Math.floor(time / 1000);
-
-    if (time < 60000) return `${sec}秒`;
-
-    return `${day ? `${day}日` : ''}${hour ? `${hour}時間` : ''}${min ? `${min}分`: ''}`;
-  }
-
-  /**
-   * Determine if the live should end automatically.
-   */
-  async autoClose() {
-    const autoClose = this.config.liveChannel.autoClose;
-
-    if (!autoClose) return;
-
-    let lastMessage = this.channel.lastMessage;
-
-    if (!lastMessage || lastMessage.author.bot || lastMessage.author.system) {
-      const lastMessages = await this.channel.messages.fetch({ limit: 10 });
-      lastMessage
-        = lastMessages.find(message => !message.author.bot && !message.author.system);
-    }
-
-    if (!lastMessage || lastMessage.createdTimestamp < this.response.createdTimestamp)
-      lastMessage = this.response;
-
-    const time = (Date.now() - lastMessage.createdTimestamp) / 1000 / 60;
-
-    if (time > autoClose){
-      await this.close(autoClose);
-      return;
-    }
-
-    if (Math.floor(time) === 5) {
-      const embed = new Discord.MessageEmbed({ color: LiveChannel.COLOR_LIVE_ALERT });
-
-      embed.title = '⏲️ あと5分で実況が自動で終了します';
-      embed.description = '5分以内にメッセージの送信がない場合は、実況が自動で終了します。';
-
-      await this.channel.send(embed);
-    }
-  }
-
-  /**
-   * Convert channel mention.
-   */
-  toString() { return this.channel.toString(); }
 }

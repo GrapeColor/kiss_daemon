@@ -1,18 +1,6 @@
 {
-  "adminRoles": [],
-  "liveChannel": {
-    "acceptChannel": "",
-    "allowRoles": [],
-    "restricRoles": [],
-    "liveName": "実況チャンネル",
-    "closeEmoji": "❌",
-    "topic": "",
-    "minLive": 0,
-    "maxLive": 0,
-    "autoClose": 0,
-    "rateLimit": 0,
-    "onlySelf": false,
-    "pinLink": true,
-    "nfsw": false
-  }
+  "acceptChannel": "",
+  "liveName": "実況チャンネル",
+  "closeEmoji": "❌",
+  "pinMessage": true
 }
