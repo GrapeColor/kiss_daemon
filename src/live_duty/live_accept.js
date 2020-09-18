@@ -50,13 +50,10 @@ export default class LiveAccept {
 
     this.channel = this.initAccept();
 
-    /** @type {Object.<string, LiveChannel>} */
-    this.liveChannels = {};
+    this.liveChannels = this.initChannels()
+      .map(channel => new LiveChannel(this, channel));
 
-    for (const channel of this.initChannels())
-      this.liveChannels[channel.id] = new LiveChannel(this, channel);
-
-    for (const live of Object.values(this.liveChannels)) live.checkLiving()
+    Promise.all(this.liveChannels.map(live => live.checkLiving()))
       .catch(console.error);
 
     this.configTake.on('liveAcceptUpdate', () => this.updateAccept()
@@ -117,13 +114,12 @@ export default class LiveAccept {
    * Update list of live channel.
    */
   async updateChannels() {
-    this.liveChannels = {};
+    await Promise.all(this.liveChannels.map(live => live.webhook.delete()));
 
-    for (const channel of this.initChannels())
-      this.liveChannels[channel.id] = new LiveChannel(this, channel);
+    this.liveChannels = this.initChannels()
+      .map(channel => new LiveChannel(this, channel));
 
-    for (const live of Object.values(this.liveChannels)) live.checkLiving()
-      .catch(console.error);
+    await Promise.all(this.liveChannels.map(live => live.checkLiving()));
   }
 
   /**
@@ -131,7 +127,7 @@ export default class LiveAccept {
    * @param {Discord.Message} message - Trigger message.
    */
   async startLive(message) {
-    const stillChannel = Object.values(this.liveChannels).find(live => !live.living);
+    const stillChannel = this.liveChannels.find(live => !live.living);
 
     if (stillChannel)
       await stillChannel.open(message);
