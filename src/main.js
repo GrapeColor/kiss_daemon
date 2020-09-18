@@ -1,6 +1,6 @@
-import KissDaemon from './kiss_daemon/index.mjs';
+import LiveDuty from './live_duty/index.mjs';
 
-const kissDaemon = new KissDaemon();
+const liveDuty = new LiveDuty();
 
-kissDaemon.login(process.env['KISS_DAEMON_TOKEN'])
+liveDuty.login(process.env['LIVE_DUTY_TOKEN'])
   .catch(console.error);

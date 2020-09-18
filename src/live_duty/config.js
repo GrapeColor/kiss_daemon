@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 
 const defaultFile
   = fs.readFileSync(
-    path.resolve('src/kiss_daemon/assets/default_config.json'), 'utf-8'
+    path.resolve('src/live_duty/assets/default_config.json'), 'utf-8'
   );
 
 import fetch from 'isomorphic-fetch';
@@ -172,7 +172,7 @@ export default class Config extends EventEmitter {
    */
   async sendValues(channel) {
     const embed = new Discord.MessageEmbed({ color: Config.COLOR_HELP });
-    const document = 'https://github.com/GrapeColor/kiss_daemon/blob/master/docs/config.md'
+    const document = 'https://github.com/GrapeColor/live_duty/blob/master/docs/config.md'
 
     embed.title = '🇶 設定値一覧';
     embed.description = `各設定の変更方法は[ドキュメント](${document})をご覧ください。`;
