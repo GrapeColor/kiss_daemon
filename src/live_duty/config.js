@@ -216,7 +216,7 @@ export default class Config extends EventEmitter {
       const matchAccept = args[0]?.match(/^((\d+)|<#(\d+)>)$/);
       acceptID = matchAccept && (matchAccept[2] || matchAccept[3]);
       const accept = guild.channels.cache.get(acceptID);
-  
+
       if (!accept || accept.type !== 'text') {
         await channel?.send('', {
           embed: {
@@ -225,7 +225,7 @@ export default class Config extends EventEmitter {
             description: 'サーバー内のテキストチャンネルを、メンション形式かIDで指定する必要があります。'
           }
         });
-  
+
         return;
       }
     }

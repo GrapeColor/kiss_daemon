@@ -23,6 +23,9 @@ export default class LiveChannel {
     });
 
     bot.on('messageDelete', message => {
+      this.liveResponses[message.id]?.close()
+        .catch(console.error);
+
       this.liveTriggers[message.id]?.cancel()
         .catch(console.error);
     });
@@ -104,7 +107,7 @@ export default class LiveChannel {
     );
 
     if (!webhook) webhook = await this.channel.createWebhook('<LIVE_CLOSED>');
-    
+
     this.webhook = webhook;
 
     const match = webhook.name.match(LiveChannel.LIVE_REGEX);
@@ -117,9 +120,10 @@ export default class LiveChannel {
     const replica  = await this.channel.messages.fetch(match.groups.replicaID);
     const response = await this.accept.channel.messages.fetch(match.groups.responseID);
 
-    if (!trigger || !replica || !response) return;
-
-    this.entryLiving(trigger, replica, response);
+    if (trigger && replica && response)
+      this.entryLiving(trigger, replica, response);
+    else
+      await this.webhook.edit('<LIVE_CLOSED>');
   }
 
   /**
@@ -260,7 +264,7 @@ export default class LiveChannel {
    * Abort the opening of the live channel.
    */
   abort() {
-    this.webhook.edit({ name: '<LIVE_CLOSED>' })
+    this.webhook?.edit({ name: '<LIVE_CLOSED>' })
       .catch(console.error);
 
     this.exitLiving();
@@ -270,45 +274,47 @@ export default class LiveChannel {
    * When the trigger is edited.
    * @param {Discord.Message} message - Edited message.
    */
-  async edit(message) { await this.replica.edit(message.content); }
+  edit(message) { return this.replica.edit(message.content); }
 
   /**
    * Cancel the live channel.
    */
   async cancel() {
-    await this.webhook.edit({ name: '<LIVE_CLOSED>' });
-
-    await this.response.delete();
-    await this.replica.delete();
-
     const embed = new Discord.MessageEmbed({
       color: LiveChannel.COLOR_LIVE_CANCELED,
       title: '↩️ 実況がキャンセルされました'
     });
 
-    await this.channel.send(embed);
-
     this.exitLiving();
+
+    await Promise.all([
+      this.webhook.edit({ name: '<LIVE_CLOSED>' }),
+      this.response.delete(),
+      this.replica.delete(),
+      this.channel.send(embed)
+    ]);
   }
 
   /**
    * Close the live channel.
    */
   async close() {
-    await this.webhook.edit({ name: '<LIVE_CLOSED>' });
-
-    await this.replica.unpin();
-
     const embed = new Discord.MessageEmbed({
       color: LiveChannel.COLOR_LIVE_CLOSED,
       title: '⚪ 実況が終了しました'
     });
 
-    await this.channel.send(embed);
-    await this.response.edit('⚪ **実況が終了しました**');
+    this.exitLiving();
+
+    await Promise.all([
+      this.webhook.edit({ name: '<LIVE_CLOSED>' }),
+      this.replica.unpin(),
+      this.channel.send(embed)
+    ]);
+
+    if (!this.response.deleted)
+      await this.response.edit('⚪ **実況が終了しました**');
 
     this.entryResumable();
-
-    this.exitLiving();
   }
 }
