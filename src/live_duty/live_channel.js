@@ -5,7 +5,7 @@ import LiveAccept from './live_accept.js';
 export default class LiveChannel {
   /**
    * Events to enter the client.
-   * @param {Discord.Client} bot Discord.js Client.
+   * @param {Discord.Client} bot - Discord.js Client.
    */
   static events(bot) {
     bot.on('messageReactionAdd', (reaction, user) => {
@@ -60,16 +60,6 @@ export default class LiveChannel {
    * @type {Object.<string, LiveChannel>}
    */
   static liveResumables = {};
-
-  /**
-   * Check timeout lives.
-   */
-  static checkTimeout() {
-    for (const live of Object.values(this.liveTriggers)) {
-      live.autoClose()
-        .catch(console.log);
-    }
-  }
 
   /**
    * Initialize live channel.
@@ -133,8 +123,6 @@ export default class LiveChannel {
    * @param {Discord.Message} response 
    */
   entryLiving(trigger, replica, response) {
-    this.living = true;
-
     delete LiveChannel.liveResumables[this.lastResponse?.id];
 
     this.trigger  = trigger;
@@ -145,6 +133,9 @@ export default class LiveChannel {
     LiveChannel.liveResponses[response.id] = this;
   }
 
+  /**
+   * Entry the channel to resumable.
+   */
   entryResumable() {
     this.lastTrigger  = this.trigger;
     this.lastReplica  = this.replica;
@@ -163,8 +154,6 @@ export default class LiveChannel {
     this.trigger  = undefined;
     this.replica  = undefined;
     this.response = undefined;
-
-    this.living = false;
   }
 
   /**
@@ -264,6 +253,8 @@ export default class LiveChannel {
    * Abort the opening of the live channel.
    */
   abort() {
+    this.living = false;
+
     this.webhook?.edit({ name: '<LIVE_CLOSED>' })
       .catch(console.error);
 
@@ -274,7 +265,7 @@ export default class LiveChannel {
    * When the trigger is edited.
    * @param {Discord.Message} message - Edited message.
    */
-  edit(message) { return this.replica.edit(message.content); }
+  edit(message) { return this.replica?.edit(message.content); }
 
   /**
    * Cancel the live channel.
@@ -285,7 +276,7 @@ export default class LiveChannel {
       title: '↩️ 実況がキャンセルされました'
     });
 
-    this.exitLiving();
+    this.living = false;
 
     await Promise.all([
       this.webhook.edit({ name: '<LIVE_CLOSED>' }),
@@ -293,6 +284,8 @@ export default class LiveChannel {
       this.replica.delete(),
       this.channel.send(embed)
     ]);
+
+    this.exitLiving();
   }
 
   /**
@@ -304,7 +297,7 @@ export default class LiveChannel {
       title: '⚪ 実況が終了しました'
     });
 
-    this.exitLiving();
+    this.living = false;
 
     await Promise.all([
       this.webhook.edit({ name: '<LIVE_CLOSED>' }),
@@ -314,6 +307,8 @@ export default class LiveChannel {
 
     if (!this.response.deleted)
       await this.response.edit('⚪ **実況が終了しました**');
+
+    this.exitLiving();
 
     this.entryResumable();
   }
