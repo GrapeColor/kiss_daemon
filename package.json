@@ -2,7 +2,7 @@
   "engines": {
     "node": "14.4.0"
   },
-  "name": "kiss_daemon",
+  "name": "live_duty",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",

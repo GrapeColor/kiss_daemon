@@ -131,7 +131,7 @@ export default class LiveChannel {
   entryLiving(trigger, replica, response) {
     this.living = true;
 
-    delete LiveChannel.liveResumables[this.lastResponse];
+    delete LiveChannel.liveResumables[this.lastResponse.id];
 
     this.trigger  = trigger;
     this.replica  = replica;
