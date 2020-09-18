@@ -131,7 +131,7 @@ export default class LiveChannel {
   entryLiving(trigger, replica, response) {
     this.living = true;
 
-    delete LiveChannel.liveResumables[this.lastResponse.id];
+    delete LiveChannel.liveResumables[this.lastResponse?.id];
 
     this.trigger  = trigger;
     this.replica  = replica;
@@ -153,8 +153,8 @@ export default class LiveChannel {
    * Exit the channel from living.
    */
   exitLiving() {
-    delete LiveChannel.liveTriggers[this.trigger.id];
-    delete LiveChannel.liveResponses[this.response.id];
+    delete LiveChannel.liveTriggers[this.trigger?.id];
+    delete LiveChannel.liveResponses[this.response?.id];
 
     this.trigger  = undefined;
     this.replica  = undefined;
