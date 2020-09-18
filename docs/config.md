@@ -16,7 +16,7 @@
   
 `<channel>`にはチャンネルメンション、またはチャンネルIDを指定します。  
 ```
-live {set|remove} <channel>
+live {set|reset} <channel>
 ```
 
 ### 実況チャンネル名
@@ -25,7 +25,7 @@ live {set|remove} <channel>
   
 `<string>`には設定したいチャンネル名を最大90文字で指定します。  
 ```
-live name <string>
+live-name <string>
 ```
 
 ### 実況終了リアクション絵文字
@@ -33,7 +33,7 @@ live name <string>
   
 `<emoji>`にはデフォルト絵文字かサーバー絵文字を1文字指定できます。  
 ```
-live close-emoji <emoji>
+close-emoji <emoji>
 ```
 
 ### 実況リンクピン止め
@@ -41,5 +41,5 @@ live close-emoji <emoji>
 これを実況チャンネルにピン止めするか否かを設定できます。  
   
 ```
-live pin-message {enable|disable}
+pin-message {enable|disable}
 ```
