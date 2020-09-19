@@ -18,8 +18,7 @@ export default class LiveAccept {
         return;
 
       if (/https?:\/\/[\w!?/+\-_~;.,*&@#$%()'[\]]+/.test(message.content))
-        this.liveAccepts[channel.id]?.startLive(message)
-          .catch(console.error);
+        this.liveAccepts[channel.id]?.startLive(message);
     });
   }
 
@@ -50,17 +49,11 @@ export default class LiveAccept {
 
     this.channel = this.initAccept();
 
-    this.liveChannels = this.initChannels()
-      .map(channel => new LiveChannel(this, channel));
+    this.liveChannels = undefined;
+    this.initChannels();
 
-    Promise.all(this.liveChannels.map(live => live.checkLiving()))
-      .catch(console.error);
-
-    this.configTake.on('liveAcceptUpdate', () => this.updateAccept()
-      .catch(console.error));
-
-    this.configTake.on('liveNameUpdate', () => this.updateChannels()
-      .catch(console.error));
+    this.configTake.on('liveAcceptUpdate', () => this.updateAccept());
+    this.configTake.on('liveNameUpdate', () => this.updateChannels());
   }
 
   /**
@@ -86,56 +79,56 @@ export default class LiveAccept {
   /**
    * Update accept
    */
-  async updateAccept() {
+  updateAccept() {
     if (this.channel) delete LiveAccept.liveAccepts[this.channel.id];
 
     this.channel = this.initAccept();
 
-    await this.updateChannels();
+    this.updateChannels();
   }
 
   /**
    * Initialize list of live channel.
-   * @returns {Discord.TextChannel[]}
    */
   initChannels() {
-    if (!this.channel) return [];
+    if (!this.channel) return;
 
     const liveRegex = new RegExp(`^${this.config.liveName}\\d{1,3}$`);
     const channels = this.guild.channels.cache;
 
-    return channels
+    this.liveChannels = channels
       .filter(channel => channel.type === 'text' && liveRegex.test(channel.name))
       .sort((channelA, channelB) => channelA.position - channelB.position)
-      .array();
+      .array()
+      .map(channel => new LiveChannel(this, channel));
+
+    Promise.all(this.liveChannels.map(live => live.checkLiving()))
+      .catch(console.error);
   }
 
   /**
    * Update list of live channel.
    */
-  async updateChannels() {
-    await Promise.all(this.liveChannels.map(live => live.webhook.delete()));
-
-    this.liveChannels = this.initChannels()
-      .map(channel => new LiveChannel(this, channel));
-
-    await Promise.all(this.liveChannels.map(live => live.checkLiving()));
+  updateChannels() {
+    Promise.all(this.liveChannels.map(live => live.webhook.delete()))
+      .catch(console.error)
+      .finally(() => this.initChannels());
   }
 
   /**
    * Strat live.
    * @param {Discord.Message} message - Trigger message.
    */
-  async startLive(message) {
+  startLive(message) {
     const stillChannel = this.liveChannels.find(live => !live.living);
 
-    if (stillChannel)
-      await stillChannel.open(message);
-    else {
-      const response = await this.channel.send('🈵 **実況チャンネルに空きがありません**');
-
-      this.bot.setTimeout(() => response.delete()
-        .catch(console.error), 60000);
-    }
+    if (stillChannel) stillChannel.open(message);
+    else this.channel.send('🈵 **実況チャンネルに空きがありません**')
+      .then(response => {
+        this.bot.setTimeout(() => {
+          response.delete()
+            .catch(console.error);
+        }, 60000);
+      });
   }
 }

@@ -11,28 +11,23 @@ export default class LiveChannel {
     bot.on('messageReactionAdd', (reaction, user) => {
       if (user.bot) return;
 
-      this.liveResponses[reaction.message.id]?.reactionClose(reaction)
-        .catch(console.error);
+      this.liveResponses[reaction.message.id]?.reactionClose(reaction);
     });
 
     bot.on('messageReactionRemove', (reaction, user) => {
       if (user.bot) return;
 
-      this.liveResumables[reaction.message.id]?.reactionResume(reaction)
-        .catch(console.error);
+      this.liveResumables[reaction.message.id]?.reactionResume(reaction);
     });
 
     bot.on('messageDelete', message => {
-      this.liveResponses[message.id]?.close(true)
-        .catch(console.error);
+      this.liveResponses[message.id]?.close(true);
 
-      this.liveTriggers[message.id]?.cancel()
-        .catch(console.error);
+      this.liveTriggers[message.id]?.cancel();
     });
 
     bot.on('messageUpdate', (_, message) => {
-      this.liveTriggers[message.id]?.edit(message)
-        .catch(console.error);
+      this.liveTriggers[message.id]?.edit(message);
     });
   }
 
@@ -165,95 +160,83 @@ export default class LiveChannel {
    * Verify if it end.
    * @param {Discord.MessageReaction} reaction 
    */
-  async reactionClose(reaction) {
+  reactionClose(reaction) {
     const emoji = reaction.emoji;
     const closeEmoji = this.config.closeEmoji;
 
-    if ((emoji.id ?? emoji.name) === closeEmoji) await this.close();
+    if ((emoji.id ?? emoji.name) === closeEmoji) this.close()
   }
 
   /**
    * Verify if it resume.
    * @param {Discord.MessageReaction} reaction 
    */
-  async reactionResume(reaction) {
+  reactionResume(reaction) {
     if (reaction.count > 0) return;
 
     const emoji = reaction.emoji;
     const closeEmoji = this.config.closeEmoji;
 
-    if ((emoji.id ?? emoji.name) === closeEmoji) await this.resume();
+    if ((emoji.id ?? emoji.name) === closeEmoji) this.resume();
   }
 
   /**
    * Open the live channel.
    * @param {Discord.Message} trigger 
    */
-  async open(trigger) {
-    let replica, response;
-
+  open(trigger) {
     this.living = true;
 
-    try {
-      const embed = new Discord.MessageEmbed({
-        color: LiveChannel.COLOR_LIVE_OPENED,
-        title: '🔴 実況を開始しました'
-      });
+    const embed = new Discord.MessageEmbed({
+      color: LiveChannel.COLOR_LIVE_OPENED,
+      title: '🔴 実況を開始しました'
+    });
 
-      await this.channel.send(embed);
-
-      replica = await this.channel.send(trigger.content);
-
-      if (this.config.pinMessage) await replica.pin();
-
-      response = await trigger.channel.send(`🔴 **実況を開始しました** ${this.channel}`);
-
-      await this.webhook.edit({
-        name: `<LIVE_OPENED:${trigger.id}:${replica.id}:${response.id}>`
-      });
-    } catch (error) {
-      this.abort();
-
-      throw error;
-    }
-
-    this.entryLiving(trigger, replica, response);
+    Promise.all([
+      this.channel.send(embed),
+      this.channel.send(trigger.content),
+      trigger.channel.send(`🔴 **実況を開始しました** ${this.channel}`)
+    ])
+      .then(([_, replica, response]) => {
+        Promise.all([
+          replica.pin(),
+          this.webhook.edit({
+            name: `<LIVE_OPENED:${trigger.id}:${replica.id}:${response.id}>`
+          })
+        ])
+          .then(() => this.entryLiving(trigger, replica, response))
+          .catch(() => this.abort());
+      })
+      .catch(() => this.abort());
   }
 
   /**
    * Resume the live channel.
    */
-  async resume() {
+  resume() {
     const trigger  = this.lastTrigger;
     const replica  = this.lastReplica;
     const response = this.lastResponse;
 
-    if (!trigger?.editable || !replica?.editable || !response?.editable) return;
+    if (!trigger?.deletable || !replica?.deletable || !response?.deletable) return;
 
     this.living = true;
 
-    try {
-      const embed = new Discord.MessageEmbed({
-        color: LiveChannel.COLOR_LIVE_OPENED,
-        title: '🔴 実況を再開しました'
-      });
+    const embed = new Discord.MessageEmbed({
+      color: LiveChannel.COLOR_LIVE_OPENED,
+      title: '🔴 実況を再開しました'
+    });
 
-      await this.channel.send(embed);
-
-      if (this.config.pinMessage) await replica.pin();
-
-      await response.edit(`🔴 **実況を再開しました** ${this.channel}`);
-
-      await this.webhook.edit({
+    Promise.all([
+      this.channel.send(embed),
+      replica.pin(),
+      response.edit(`🔴 **実況を再開しました** ${this.channel}`),
+      this.webhook.edit({
         name: `<LIVE_OPENED:${trigger.id}:${replica.id}:${response.id}>`
-      });
-    } catch (error) {
-      this.abort();
-
-      throw error;
-    }
-
-    this.entryLiving(trigger, replica, response);
+      })
+    ])
+      .then(() => this.entryLiving(trigger, replica, response))
+      .catch(() => this.abort());
   }
 
   /**
@@ -272,53 +255,60 @@ export default class LiveChannel {
    * When the trigger is edited.
    * @param {Discord.Message} message - Edited message.
    */
-  edit(message) { return this.replica?.edit(message.content); }
+  edit(message) {
+    this.replica?.edit(message.content)
+      .catch(console.error);
+  }
 
   /**
    * Cancel the live channel.
    */
-  async cancel() {
+  cancel() {
     const embed = new Discord.MessageEmbed({
       color: LiveChannel.COLOR_LIVE_CANCELED,
       title: '↩️ 実況がキャンセルされました'
     });
 
     this.living = false;
+    delete LiveChannel.liveResponses[this.response.id];
 
-    await Promise.all([
+    Promise.all([
       this.webhook.edit({ name: '<LIVE_CLOSED>' }),
       this.response.delete(),
       this.replica?.delete(),
       this.channel.send(embed)
-    ]);
-
-    this.exitLiving();
+    ])
+      .catch(console.error)
+      .finally(() => this.exitLiving());
   }
 
   /**
    * Close the live channel.
    * @param {boolean} force - Forced closure.
    */
-  async close(force = false) {
+  close(force = false) {
+    this.living = false;
+
     const embed = new Discord.MessageEmbed({
       color: LiveChannel.COLOR_LIVE_CLOSED,
       title: '⚪ 実況が終了しました'
     });
 
-    this.living = false;
-
-    await Promise.all([
+    Promise.all([
       this.webhook.edit({ name: '<LIVE_CLOSED>' }),
       this.replica?.unpin(),
       this.channel.send(embed)
-    ]);
+    ])
+      .catch(console.error)
+      .finally(() => {
+        if (!force) {
+          this.response.edit('⚪ **実況が終了しました**')
+            .catch(console.error);
 
-    if (!force) {
-      await this.response.edit('⚪ **実況が終了しました**');
+          this.entryResumable();
+        }
 
-      this.entryResumable();
-    }
-
-    this.exitLiving();
+        this.exitLiving();
+      });
   }
 }

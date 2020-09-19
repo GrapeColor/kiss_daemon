@@ -105,8 +105,7 @@ export default class Config extends EventEmitter {
         return;
 
       if (this.botMentionRegex.test(message.content))
-        this.parseCommand(channel, message)
-          .catch(console.error);
+        this.parseCommand(channel, message);
     });
   }
 
@@ -115,13 +114,15 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel} channel - Guils's text channel.
    * @param {Discord.Message} message - Event trigger message.
    */
-  static async parseCommand(channel, message) {
+  static parseCommand(channel, message) {
     const guild = channel.guild;
-    const member = await guild.members.fetch(message.author);
 
-    if (!member.hasPermission('ADMINISTRATOR')) return;
-
-    await this.configs[guild.id].command(channel, message);
+    guild.members.fetch(message.author)
+      .then(member => {
+        if (member.hasPermission('ADMINISTRATOR'))
+          this.configs[guild.id].command(channel, message);
+      })
+      .catch(console.error);
   }
 
   /**
@@ -141,27 +142,27 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel} channel - Guils's text channel.
    * @param {Discord.Message} message - Event trigger message.
    */
-  async command(channel, message) {
+  command(channel, message) {
     const args = message.content.split(' ').slice(1);
 
-    if (!args[0]) await this.sendValues(channel);
+    if (!args[0]) this.sendValues(channel);
 
     switch (args[0]) {
       case 'set':
-        await this.setAccept(channel, channel.guild, args.slice(1), true);
+        this.setAccept(channel, channel.guild, args.slice(1), true);
         break;
       case 'reset':
-        await this.setAccept(channel, channel.guild, args.slice(1), false);
+        this.setAccept(channel, channel.guild, args.slice(1), false);
         break;
       case 'live-name':
-        await this.setLiveName(channel, args.slice(1));
+        this.setLiveName(channel, args.slice(1));
         break;
       case 'close-emoji':
-        await this.setCloseEmoji(channel, channel.guild, args.slice(1));
+        this.setCloseEmoji(channel, channel.guild, args.slice(1));
         break;
-      case 'pin-massage':
-        if (args[1] === 'enable')  await this.setPinLink(channel, true);
-        if (args[1] === 'disable') await this.setPinLink(channel, false);
+      case 'pin-message':
+        if (args[1] === 'enable')  this.setPinLink(channel, true);
+        if (args[1] === 'disable') this.setPinLink(channel, false);
         break;
     }
   }
@@ -170,9 +171,10 @@ export default class Config extends EventEmitter {
    * Send command help.
    * @param {Discord.TextChannel} channel - Guils's text channel.
    */
-  async sendValues(channel) {
+  sendValues(channel) {
     const embed = new Discord.MessageEmbed({ color: Config.COLOR_HELP });
-    const document = 'https://github.com/GrapeColor/live_duty/blob/master/docs/config.md'
+    const document
+      = 'https://github.com/GrapeColor/live_duty/blob/master/docs/config.md';
 
     embed.title = '🇶 設定値一覧';
     embed.description = `各設定の変更方法は[ドキュメント](${document})をご覧ください。`;
@@ -199,7 +201,8 @@ export default class Config extends EventEmitter {
       }
     ])
 
-    await channel.send(embed);
+    channel.send(embed)
+      .catch(console.error);
   }
 
   /**
@@ -209,7 +212,7 @@ export default class Config extends EventEmitter {
    * @param {string[]} args - Parsed command arguments.
    * @param {boolean} set - Enable or Disable.
    */
-  async setAccept(channel, guild, args, set) {
+  setAccept(channel, guild, args, set) {
     let acceptID = '';
 
     if (set) {
@@ -218,29 +221,35 @@ export default class Config extends EventEmitter {
       const accept = guild.channels.cache.get(acceptID);
 
       if (!accept || accept.type !== 'text') {
-        await channel?.send('', {
+        channel?.send('', {
           embed: {
             color: Config.COLOR_FAILD,
             title: '⚠️ 指定したチャンネルが有効な値ではありません',
             description: 'サーバー内のテキストチャンネルを、メンション形式かIDで指定する必要があります。'
           }
-        });
+        })
+          .catch(console.error);
 
         return;
       }
     }
 
-    if (await this.updateConfig(channel, 'acceptChannel', acceptID)) {
-      this.emit('liveAcceptUpdate');
+    this.updateConfig(channel, 'acceptChannel', acceptID)
+      .then(success => {
+        if (!success) return;
 
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_SUCCESS,
-          title: `✅ 実況受付チャンネルを${acceptID ? `変更` : '無効に'}しました`,
-          description: acceptID ? `<#${acceptID}> で実況チャンネルを開始できます。` : ''
-        }
-      });
-    }
+        this.emit('liveAcceptUpdate');
+
+        channel?.send('', {
+          embed: {
+            color: Config.COLOR_SUCCESS,
+            title: `✅ 実況受付チャンネルを${acceptID ? `変更` : '無効に'}しました`,
+            description: acceptID ? `<#${acceptID}> で実況チャンネルを開始できます。` : ''
+          }
+        })
+          .catch(console.error);
+      })
+      .catch(console.error);
   }
 
   /**
@@ -248,40 +257,47 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel|null} channel - Guils's text channel.
    * @param {string[]} args - Parsed command arguments.
    */
-  async setLiveName(channel, args) {
+  setLiveName(channel, args) {
     if (!args[0]) {
-      await channel?.send('', {
+      channel?.send('', {
         embed: {
           color: Config.COLOR_FAILD,
           title: '⚠️ 実況チャンネル名を入力してください'
         }
-      });
+      })
+        .catch(console.error);
 
       return;
     }
 
     if (args[0].length > 90) {
-      await channel?.send('', {
+      channel?.send('', {
         embed: {
           color: Config.COLOR_FAILD,
           title: '⚠️ 実況チャンネル名は90文字以下で指定してください'
         }
-      });
+      })
+        .catch(console.error);
 
       return;
     }
 
-    if (await this.updateConfig(channel, 'liveName', args[0])) {
-      this.emit('liveNameUpdate');
+    this.updateConfig(channel, 'liveName', args[0])
+      .then(success => {
+        if (!success) return;
 
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_SUCCESS,
-          title: '✅ 実況チャンネル名を設定しました',
-          description: `以降 \`${args[0]}～\` が実況チャンネルとして認識されます。`
-        }
-      });
-    }
+        this.emit('liveNameUpdate');
+
+        channel?.send('', {
+          embed: {
+            color: Config.COLOR_SUCCESS,
+            title: '✅ 実況チャンネル名を設定しました',
+            description: `以降 \`${args[0]}～\` が実況チャンネルとして認識されます。`
+          }
+        })
+          .catch(console.error);
+      })
+      .catch(console.error);
   }
 
   /**
@@ -290,16 +306,17 @@ export default class Config extends EventEmitter {
    * @param {Discord.Guild} guild - Discord guild.
    * @param {string[]} args - Parsed command arguments.
    */
-  async setCloseEmoji(channel, guild, args) {
+  setCloseEmoji(channel, guild, args) {
     const matchEmoji = args[0]?.match(emojiRegex);
 
     if (!matchEmoji) {
-      await channel?.send('', {
+      channel?.send('', {
         embed: {
           color: Config.COLOR_FAILD,
           title: '⚠️ 絵文字を1文字だけ指定してください'
         }
-      });
+      })
+        .catch(console.error);
 
       return;
     }
@@ -308,24 +325,31 @@ export default class Config extends EventEmitter {
     const isGuildEmoji = !!matchEmoji[2];
 
     if (isGuildEmoji && !guild.emojis.cache.has(emoji)) {
-      await channel?.send('', {
+      channel?.send('', {
         embed: {
           color: Config.COLOR_FAILD,
           title: '⚠️ サーバー内に存在しない絵文字です'
         }
-      });
+      })
+        .catch(console.error);
 
       return;
     }
 
-    if (await this.updateConfig(channel, 'closeEmoji', emoji))
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_SUCCESS,
-          title: '✅ 実況チャンネルを終了させる絵文字を変更しました',
-          description: `${matchEmoji[0]} で実況チャンネルを終了できます`
-        }
-      });
+    this.updateConfig(channel, 'closeEmoji', emoji)
+      .then(success => {
+        if (!success) return;
+
+        channel?.send('', {
+          embed: {
+            color: Config.COLOR_SUCCESS,
+            title: '✅ 実況チャンネルを終了させる絵文字を変更しました',
+            description: `${matchEmoji[0]} で実況チャンネルを終了できます`
+          }
+        })
+          .catch(console.error);
+      })
+      .catch(console.error);
   }
 
   /**
@@ -333,14 +357,20 @@ export default class Config extends EventEmitter {
    * @param {Discord.TextChannel|null} channel - Guils's text channel.
    * @param {boolean} enable - enable or disable.
    */
-  async setPinLink(channel, enable) {
-    if (await this.updateConfig(channel, 'pinMessage', enable))
-      await channel?.send('', {
-        embed: {
-          color: Config.COLOR_SUCCESS,
-          title: `✅ 実況チャンネルへの実況リンクピン止めを${enable ? '有効' : '無効'}にしました`
-        }
-      });
+  setPinLink(channel, enable) {
+    this.updateConfig(channel, 'pinMessage', enable)
+      .then(success => {
+        if (!success) return;
+
+        channel?.send('', {
+          embed: {
+            color: Config.COLOR_SUCCESS,
+            title: `✅ 実況チャンネルへの実況リンクピン止めを${enable ? '有効' : '無効'}にしました`
+          }
+        })
+          .catch(console.error);
+      })
+      .catch(console.error);
   }
 
   /**
